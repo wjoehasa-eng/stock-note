@@ -9,6 +9,9 @@
   · 데모: ?demo=1 또는 저장된 데이터가 없을 때 자동으로 예시 데이터로 시작합니다.
   · v1.1: 설치형 앱(PWA) — manifest.webmanifest · sw.js(오프라인 껍데기) · 아이콘(192/512/maskable/apple-touch)
     · 설정과 상단 버튼에서 '앱으로 설치' (안드로이드는 원클릭, iOS는 사파리 공유 → 홈 화면에 추가)
+  · v1.2: 홈 「보유 종목」 옆 '+ 기존 보유 추가' — 예전부터 들고 있던 종목을 수량·평단으로 바로 등록
+    · 매매기록에 구분 '초기보유'로 저장 → 보유 수량·평단·집중도에는 합산, 예수금·이유 태그·분위기 통계는 건드리지 않음
+    · '매수 총액을 순수 원금에도 더하기'를 켜면 진짜 수익이 왜곡되지 않음 (선택)
 -->
 <html lang="ko" data-theme="light">
 <head>
@@ -118,6 +121,9 @@ h3{font-size:18px;font-weight:800;letter-spacing:-.02em}
 [data-theme="dark"] .card{border-color:var(--line2)}
 .cardhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
 .cardhead .hint{font-size:12px;color:var(--sub);font-weight:500}
+.cardhead .chright{display:flex;align-items:center;gap:8px;margin-left:auto;min-width:0}
+.cardhead .hint.hold-hint{white-space:nowrap}
+@media (max-width:470px){.cardhead .hint.hold-hint{display:none}}
 .hr{height:1px;background:var(--line2);margin:16px 0}
 .grid2{display:grid;gap:14px}
 @media (min-width:880px){.grid2{grid-template-columns:1.12fr .88fr;align-items:start}.grid2 > .card{margin-bottom:14px}}
@@ -284,6 +290,7 @@ select.sel{
 .side.buy{background:var(--red-soft);color:var(--red)}
 .side.sell{background:var(--blue-soft);color:var(--blue-ink)}
 .side.div{background:var(--green-soft);color:var(--green)}
+.side.init{background:var(--card3);color:var(--ink2)}
 .tc-name{font-size:15px;font-weight:800;letter-spacing:-.02em}
 .tc-date{margin-left:auto;font-size:12px;color:var(--sub);font-variant-numeric:tabular-nums}
 .tc-mid{display:flex;align-items:baseline;gap:8px;margin-top:8px;flex-wrap:wrap}
@@ -430,6 +437,19 @@ textarea.inp{height:auto;min-height:78px;padding:12px 14px;line-height:1.5;resiz
 }
 .amountline b{font-size:17px;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 .formmsg{font-size:12.5px;color:var(--red);margin:-6px 0 12px;min-height:0}
+.checkrow{
+  display:flex;align-items:flex-start;gap:10px;padding:13px 14px;border-radius:13px;
+  background:var(--card2);font-size:13px;line-height:1.45;cursor:pointer
+}
+.checkrow input{
+  flex:none;width:20px;height:20px;margin:1px 0 0;accent-color:var(--blue);cursor:pointer
+}
+.checkrow b{display:block;font-size:13.5px;font-weight:800;color:var(--ink);letter-spacing:-.02em}
+.checkrow em{display:block;font-style:normal;font-size:11.5px;color:var(--sub);margin-top:4px;line-height:1.5}
+.hold-empty-add{margin-top:14px}
+select.inp{appearance:none;-webkit-appearance:none;font-weight:700;background-image:none;padding-right:38px}
+.selcaret{position:relative}
+.selcaret:after{content:"";position:absolute;right:16px;top:20px;width:7px;height:7px;border-right:1.8px solid var(--sub);border-bottom:1.8px solid var(--sub);transform:rotate(45deg);pointer-events:none}
 .sheet-actions{display:flex;gap:8px;margin-top:6px}
 .sheet-actions .btn{flex:1}
 .calc-note{font-size:12px;color:var(--sub);line-height:1.55;margin-top:10px}
@@ -596,7 +616,10 @@ textarea.inp{height:auto;min-height:78px;padding:12px 14px;line-height:1.5;resiz
       <div class="card">
         <div class="cardhead">
           <h2>보유 종목</h2>
-          <span class="hint">현재가 배지를 눌러 수정</span>
+          <div class="chright">
+            <span class="hint hold-hint">현재가 배지를 눌러 수정</span>
+            <button class="btn sm" id="btnAddHolding">+ 기존 보유 추가</button>
+          </div>
         </div>
         <div id="holdingsList"></div>
       </div>
@@ -627,6 +650,7 @@ textarea.inp{height:auto;min-height:78px;padding:12px 14px;line-height:1.5;resiz
           <button class="chip" data-type="buy">매수</button>
           <button class="chip" data-type="sell">매도</button>
           <button class="chip" data-type="div">배당</button>
+          <button class="chip" data-type="init">기존 보유</button>
         </div>
         <div class="selwrap">
           <select class="sel" id="tagFilter" aria-label="이유 태그 필터">
@@ -736,12 +760,12 @@ textarea.inp{height:auto;min-height:78px;padding:12px 14px;line-height:1.5;resiz
 
 /* ========================================================== 상수 */
 var LS = { data:'stocknote.data.v1', url:'stocknote.url', theme:'stocknote.theme' };
-var APP_VERSION = '1.1.0';
+var APP_VERSION = '1.2.0';
 var REASONS = ['실적·수주','배당','저평가','차트·수급','물타기','리밸런싱','감정·불안'];
 var MOODS = ['공포','보통','과열'];
 var HORIZONS = ['단기','중기','장기'];
 var MOOD_CLASS = { '공포':'fear', '보통':'normal', '과열':'hot' };
-var SIDE_LABEL = { buy:'매수', sell:'매도', div:'배당' };
+var SIDE_LABEL = { buy:'매수', sell:'매도', div:'배당', init:'기존 보유' };
 
 /* 종목 → 섹터 (공개된 업종 분류일 뿐, 보유 정보가 아닙니다) */
 var SECTORS = {
@@ -755,7 +779,13 @@ var SECTORS = {
   '삼성바이오로직스':'바이오','셀트리온':'바이오',
   '이마트':'유통','BGF리테일':'유통'
 };
-function sectorOf(name){ return SECTORS[name] || '기타'; }
+/* 섹터 목록 — 기존 보유를 넣을 때 직접 고를 수 있고, 직접 고른 값은 data.sectors 에 남습니다. */
+var SECTOR_NAMES = ['반도체','통신','인프라','금융','자동차','플랫폼','소재','바이오','유통','조선','기계·방산','2차전지','에너지','건설','헬스케어','기타'];
+function sectorOf(name){
+  var map = (state.data && state.data.sectors) || {};
+  if (map[name]) return map[name];
+  return SECTORS[name] || '기타';
+}
 
 /* ========================================================== 유틸 */
 function num(v){ var n = Number(v); return isFinite(n) ? n : 0; }
@@ -819,6 +849,7 @@ function demoData(){
   return {
     settings: { principal:12000000, loanBase:0, maintenanceRatio:140, concWarn:30, concDanger:45 },
     prices: { '삼성전자':76500, 'SK텔레콤':56200, '맥쿼리인프라':12450, 'KB금융':88500 },
+    sectors: {},
     trades: [
       T('t01','2026-05-12','삼성전자','buy',20,68000,'cash',['저평가','차트·수급'],'보통','중기','+12% 또는 실적 발표 전','반도체 업황 바닥이라는 판단'),
       T('t02','2026-06-02','SK텔레콤','buy',30,52000,'cash',['배당','저평가'],'공포','장기','배당 삭감 공시가 나오면','AI 요금 인상 기대'),
@@ -891,7 +922,7 @@ function demoData(){
 function emptyData(){
   return {
     settings: { principal:0, loanBase:0, maintenanceRatio:140, concWarn:30, concDanger:45 },
-    prices: {}, trades: [], dividends: [], gurus: [], curve: []
+    prices: {}, sectors: {}, trades: [], dividends: [], gurus: [], curve: []
   };
 }
 
@@ -914,6 +945,7 @@ function normalizeData(d){
   var out = {
     settings: Object.assign({}, base.settings, d.settings || {}),
     prices: Object.assign({}, d.prices || {}),
+    sectors: Object.assign({}, d.sectors || {}),
     trades: Array.isArray(d.trades) ? d.trades : [],
     dividends: Array.isArray(d.dividends) ? d.dividends : [],
     gurus: Array.isArray(d.gurus) ? d.gurus : [],
@@ -924,14 +956,23 @@ function normalizeData(d){
   out.settings.maintenanceRatio = num(out.settings.maintenanceRatio) || 140;
   out.settings.concWarn = num(out.settings.concWarn) || 30;
   out.settings.concDanger = num(out.settings.concDanger) || 45;
+  var sec = {};
+  Object.keys(out.sectors).forEach(function(k){ if (k && typeof out.sectors[k] === 'string' && out.sectors[k]) sec[k] = out.sectors[k]; });
+  out.sectors = sec;
   out.trades = out.trades.filter(function(t){ return t && t.name; }).map(function(t){
+    var id = t.id || uid();
+    var side = (t.side === 'sell' || t.side === 'div' || t.side === 'init') ? t.side : 'buy';
+    /* 예전 백엔드가 '초기보유'를 '매수'로 되돌려 읽어도 ID 접두어(i1-/i0-)로 복원합니다. */
+    if (side === 'buy' && /^i[01]-/.test(String(id))) side = 'init';
+    var prin = false;
+    if (side === 'init') prin = (t.prin != null) ? !!t.prin : !/^i0-/.test(String(id));
     return {
-      id: t.id || uid(), date: t.date || todayISO(), name: String(t.name),
-      side: (t.side === 'sell' || t.side === 'div') ? t.side : 'buy',
+      id: id, date: t.date || todayISO(), name: String(t.name), side: side,
       qty: num(t.qty), price: num(t.price),
+      prin: prin,
       funding: t.funding === 'loan' ? 'loan' : 'cash',
-      reasons: Array.isArray(t.reasons) ? t.reasons.filter(function(r){ return REASONS.indexOf(r) >= 0; }) : [],
-      mood: MOODS.indexOf(t.mood) >= 0 ? t.mood : '보통',
+      reasons: (side === 'init') ? [] : (Array.isArray(t.reasons) ? t.reasons.filter(function(r){ return REASONS.indexOf(r) >= 0; }) : []),
+      mood: (side === 'init') ? '' : (MOODS.indexOf(t.mood) >= 0 ? t.mood : '보통'),
       horizon: HORIZONS.indexOf(t.horizon) >= 0 ? t.horizon : '중기',
       rule: t.rule || '', memo: t.memo || ''
     };
@@ -968,11 +1009,18 @@ function compute(){
   var d = state.data;
   var s = d.settings;
   var trades = d.trades.slice().sort(function(a,b){
+    /* 기존 보유(초기보유)는 가장 먼저 쌓아 두어(이미 들고 있던 주식이므로) 어떤 매도든 수량이 맞습니다.
+       단, 매도는 기록된 매수 lot을 먼저 소진하고 기존 보유 lot은 그다음에 씁니다 —
+       그래서 이미 쌓인 태그·분위기 성과가 소급해서 바뀌지 않습니다. */
+    var ai = a.side === 'init' ? 0 : 1, bi = b.side === 'init' ? 0 : 1;
+    if (ai !== bi) return ai - bi;
     if (a.date !== b.date) return a.date < b.date ? -1 : 1;
     return 0;
   });
-  var principal = num(s.principal);
-  var cash = principal;
+  var principalBase = num(s.principal);
+  var initPrincipal = 0;
+  var principal = principalBase;
+  var cash = principalBase;
   var loan = num(s.loanBase);
   var realized = 0, divCash = 0;
   var lots = {};              // 종목 → [{qty, price, tags, mood}]
@@ -991,7 +1039,12 @@ function compute(){
 
   trades.forEach(function(t){
     var qty = num(t.qty), price = num(t.price), amt = qty * price;
-    if (t.side === 'buy'){
+    if (t.side === 'init'){
+      /* 기존 보유: 예수금·이유 태그·분위기 통계를 건드리지 않고 lot만 쌓습니다. */
+      if (!lots[t.name]) lots[t.name] = [];
+      lots[t.name].push({ qty: qty, price: price, tags: [], mood: '', date: t.date, init: true });
+      if (t.prin) initPrincipal += amt;
+    } else if (t.side === 'buy'){
       if (t.funding === 'loan') loan += amt; else cash -= amt;
       if (!lots[t.name]) lots[t.name] = [];
       lots[t.name].push({ qty: qty, price: price, tags: t.reasons.slice(), mood: t.mood, date: t.date });
@@ -1000,24 +1053,28 @@ function compute(){
     } else if (t.side === 'sell'){
       cash += amt;
       var left = qty, arr = lots[t.name] || [];
-      while (left > 0.0001 && arr.length){
-        var lot = arr[0];
+      /* FIFO: 기록된 매수 lot 먼저, 기존 보유(초기보유) lot은 그다음 */
+      var seq = arr.filter(function(l){ return !l.init; }).concat(arr.filter(function(l){ return l.init; }));
+      seq.forEach(function(lot){
+        if (left <= 0.0001 || lot.qty <= 0.0001) return;
         var take = Math.min(left, lot.qty);
         var cost = take * lot.price;
         var pnl = (price - lot.price) * take;
         realized += pnl;
         realizedRows.push({ id:t.id, date:t.date, name:t.name, pnl:pnl, qty:take, cost:cost });
         lot.tags.forEach(function(tag){ addStat(tagStat, tag, pnl, cost); });
-        addStat(moodStat, lot.mood, pnl, cost);
+        if (lot.mood) addStat(moodStat, lot.mood, pnl, cost);
         lot.qty -= take; left -= take;
-        if (lot.qty <= 0.0001) arr.shift();
-      }
+      });
+      lots[t.name] = arr.filter(function(l){ return l.qty > 0.0001; });
       lastPrice[t.name] = price;
     } else {
       cash += amt;
       divCash += amt;
     }
   });
+
+  principal = principalBase + initPrincipal;   /* '원금에도 더하기'를 켰 기존 보유만 더해집니다 */
 
   var holdings = Object.keys(lots).map(function(name){
     var arr = lots[name], qty = 0, cost = 0;
@@ -1338,7 +1395,8 @@ function curveLeave(){
 function renderHoldings(c){
   var el = $('#holdingsList');
   if (!c.holdings.length){
-    el.innerHTML = '<div class="empty" style="border:0;padding:26px 10px">보유 종목이 없습니다. 매매를 기록하면 여기에 쌓입니다.</div>';
+    el.innerHTML = '<div class="empty" style="border:0;padding:26px 10px">보유 종목이 없습니다.<br>매매를 기록하거나, 예전부터 들고 있던 종목을 <b>+ 기존 보유 추가</b>로 한 번에 넣어 보세요.' +
+      '<div class="hold-empty-add"><button class="btn sm" data-addhold="1">+ 기존 보유 추가</button></div></div>';
     return;
   }
   el.innerHTML = c.holdings.map(function(h){
@@ -1357,9 +1415,10 @@ function renderHoldings(c){
 /* ========================================================== 렌더 · 매매 기록 */
 function renderTrades(c){
   var d = state.data;
-  var bs = { buy:0, sell:0, div:0 };
+  var bs = { buy:0, sell:0, div:0, init:0 };
   d.trades.forEach(function(t){ bs[t.side] += 1; });
-  $('#tradeCount').textContent = '모두 ' + d.trades.length + '건 · 매수 ' + bs.buy + ' · 매도 ' + bs.sell + ' · 배당 ' + bs.div + ' · 카드를 누르면 수정';
+  $('#tradeCount').textContent = '모두 ' + d.trades.length + '건 · 매수 ' + bs.buy + ' · 매도 ' + bs.sell + ' · 배당 ' + bs.div +
+    (bs.init ? ' · 기존 보유 ' + bs.init : '') + ' · 카드를 누르면 수정';
 
   /* 이유 태그별 — 매수는 바로, 성과는 매도로 이어진 건만 */
   var tagBuys = {};
@@ -1431,6 +1490,17 @@ function renderTrades(c){
   }
   tl.innerHTML = list.map(function(t){
     var amt = num(t.qty) * num(t.price);
+    if (t.side === 'init'){
+      return '<div class="tcard" data-id="' + esc(t.id) + '">' +
+        '<div class="tc-top"><span class="side init">기존 보유</span>' +
+          '<span class="tc-name">' + esc(t.name) + '</span>' +
+          '<span class="tc-date num">' + dateLabel(t.date) + '</span></div>' +
+        '<div class="tc-mid"><span class="tc-amt num">' + won(amt) + '</span>' +
+          '<span class="tc-qty num">' + fmt(t.qty) + '주 × 평단 ' + fmt(t.price) + '원</span></div>' +
+        '<div class="tc-foot"><span>' + (t.prin ? '순수 원금에 포함' : '순수 원금 미포함') +
+          '</span><span>· 매수 기록 · 태그 성과 제외</span></div>' +
+      '</div>';
+    }
     var realRow = t.side === 'sell' ? c.realizedRows.filter(function(r){ return r.id === t.id; }).reduce(function(a,r){ return a + r.pnl; }, 0) : null;
     return '<div class="tcard" data-id="' + esc(t.id) + '">' +
       '<div class="tc-top"><span class="side ' + t.side + '">' + SIDE_LABEL[t.side] + '</span>' +
@@ -1807,6 +1877,152 @@ function openTradeSheet(id){
   }
 }
 
+/* ========================================================== 기존 보유 추가 */
+function initId(prin){ return 'i' + (prin ? '1' : '0') + '-' + uid(); }
+function holdingsOfName(name){
+  var c = compute();
+  return c.holdings.filter(function(h){ return h.name === name; })[0] || null;
+}
+
+function openHoldingSheet(id){
+  var t = id ? findTrade(id) : null;
+  if (t && t.side !== 'init') t = null;
+  var isEdit = !!t;
+  var d = isEdit ? t : { name:'', qty:'', price:'', prin:true };
+  var curPx = d.name ? state.data.prices[d.name] : null;
+  var nameList = Object.keys(SECTORS).concat(Object.keys(state.data.sectors || {}))
+    .concat(state.data.trades.map(function(x){ return x.name; }))
+    .filter(function(v, i, a){ return v && a.indexOf(v) === i; });
+  var sectorOpts = '<option value="">자동 (종목명으로 판별)</option>' +
+    SECTOR_NAMES.map(function(s){ return '<option value="' + esc(s) + '">' + esc(s) + '</option>'; }).join('');
+
+  var html =
+    '<div class="field"><label for="hName">종목명</label>' +
+      '<input class="inp" id="hName" list="holdNameList" placeholder="예: 현대차" value="' + esc(d.name) + '">' +
+      '<datalist id="holdNameList">' + nameList.map(function(n){ return '<option value="' + esc(n) + '">'; }).join('') + '</datalist>' +
+      '<div class="srchint" id="hDup"></div></div>' +
+    '<div class="field"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
+      '<div><label for="hQty">보유 수량(주)</label><input class="inp num" id="hQty" type="number" inputmode="numeric" min="0" step="1" placeholder="0" value="' + (d.qty === '' ? '' : d.qty) + '"></div>' +
+      '<div><label for="hAvg">평균 매입단가(원)</label><input class="inp num" id="hAvg" type="number" inputmode="numeric" min="0" step="1" placeholder="0" value="' + (d.price === '' ? '' : d.price) + '"></div>' +
+    '</div></div>' +
+    '<div class="amountline"><span>매수 총액 (수량 × 평단)</span><b id="hAmt">0원</b></div>' +
+    '<div class="field"><label for="hCur">현재가(원) <span style="color:var(--sub);font-weight:500">선택</span></label>' +
+      '<input class="inp num" id="hCur" type="number" inputmode="numeric" min="0" step="1" placeholder="비우면 평단과 같게" value="' + (curPx != null ? curPx : '') + '">' +
+      '<div class="srchint">비워 두면 평가액이 매수 총액과 같게(수익 0) 시작합니다. 홈 보유 종목의 현재가 배지로 언제든 바꿀 수 있습니다.</div></div>' +
+    '<div class="field"><label for="hSector">섹터 <span style="color:var(--sub);font-weight:500">선택 · 집중도·고수 매칭에 쓰임</span></label>' +
+      '<div class="selcaret"><select class="inp" id="hSector">' + sectorOpts + '</select></div>' +
+      '<div class="srchint" id="hSecHint"></div></div>' +
+    '<div class="field"><label class="checkrow" for="hPrin">' +
+      '<input type="checkbox" id="hPrin"' + (d.prin ? ' checked' : '') + '>' +
+      '<span><b>매수 총액을 순수 원금에도 함께 더하기</b>' +
+        '<em>이미 들고 있던 종목을 처음 등록할 땐 켜 두세요. 순수 원금 대비 진짜 수익이 왜곡되지 않습니다. 예수금은 차감하지 않고, 매수 기록·태그 승률·분위기 통계에도 섞이지 않습니다.</em></span>' +
+    '</label></div>' +
+    '<div class="formmsg" id="hMsg"></div>' +
+    '<div class="sheet-actions">' +
+      (isEdit ? '<button class="btn danger" id="btnDelHolding">삭제</button>'
+              : '<button class="btn ghost" id="btnSaveMore">저장하고 하나 더</button>') +
+      '<button class="btn primary" id="btnSaveHolding">' + (isEdit ? '수정 저장' : '저장') + '</button>' +
+    '</div>' +
+    '<p class="calc-note">기존 보유는 「매매 기록」에 구분 <b>초기보유</b>로 저장됩니다. 보유 수량·평단·평가액·집중도에는 합산되고, 예수금·이유 태그·분위기 통계는 그대로 둡니다. 같은 종목을 나중에 또 넣으면 수량과 평단이 합산됩니다.</p>';
+
+  openSheet(isEdit ? '기존 보유 수정' : '기존 보유 추가', html);
+
+  var nameEl = $('#hName'), qtyEl = $('#hQty'), avgEl = $('#hAvg'), curEl = $('#hCur'), secEl = $('#hSector');
+  if (isEdit && state.data.sectors[d.name]) secEl.value = state.data.sectors[d.name];
+
+  function syncAmt(){ $('#hAmt').textContent = won(num(qtyEl.value) * num(avgEl.value)); }
+  function syncDup(){
+    var n = nameEl.value.trim();
+    var box = $('#hDup');
+    if (!n){ box.className = 'srchint'; box.textContent = '예전부터 들고 있던 종목을 수량·평단만으로 등록합니다.'; return; }
+    var h = holdingsOfName(n);
+    if (h){
+      var q = num(qtyEl.value);
+      box.className = 'srchint good';
+      box.textContent = '이미 ' + fmt(h.qty) + '주 · 평단 ' + fmt(h.avg) + '원 보유 중' +
+        (q > 0 ? ' → 저장하면 ' + fmt(h.qty + q) + '주로 합산됩니다.' : ' → 저장하면 합산됩니다.');
+    } else {
+      box.className = 'srchint'; box.textContent = '';
+    }
+  }
+  function syncSec(){
+    var n = nameEl.value.trim(), pick = secEl.value, auto = SECTORS[n] || '';
+    var hint = $('#hSecHint');
+    if (pick) hint.textContent = '이 종목은 「' + pick + '」 섹터로 저장됩니다.';
+    else if (auto) hint.textContent = '종목명으로 「' + auto + '」 섹터를 자동 판별합니다.';
+    else if (n) hint.textContent = '자동 판별이 없어 「기타」로 둡니다. 직접 골라도 됩니다.';
+    else hint.textContent = '';
+  }
+  nameEl.oninput = function(){ syncDup(); syncSec(); };
+  qtyEl.oninput = function(){ syncAmt(); syncDup(); };
+  avgEl.oninput = syncAmt;
+  secEl.onchange = syncSec;
+  syncAmt(); syncDup(); syncSec();
+  nameEl.focus();
+
+  function saveHolding(stay){
+    var name = nameEl.value.trim();
+    var qty = num(qtyEl.value), avg = num(avgEl.value);
+    var msg = $('#hMsg');
+    if (!name){ msg.textContent = '종목명을 넣어 주세요.'; nameEl.focus(); return; }
+    if (qty <= 0){ msg.textContent = '보유 수량을 1주 이상으로 넣어 주세요.'; qtyEl.focus(); return; }
+    if (avg <= 0){ msg.textContent = '평균 매입단가를 넣어 주세요.'; avgEl.focus(); return; }
+    var curRaw = curEl.value.trim();
+    var cur = curRaw === '' ? null : num(curRaw);
+    if (curRaw !== '' && cur <= 0){ msg.textContent = '현재가는 0보다 큰 금액이거나 비워 두세요.'; curEl.focus(); return; }
+
+    var prinOn = $('#hPrin').checked;
+    var id = (t && t.id) ? String(t.id).replace(/^i[01]-/, 'i' + (prinOn ? '1' : '0') + '-')
+                         : initId(prinOn);
+    var rec = {
+      id: id, date: (t && t.date) || todayISO(), name: name, side: 'init',
+      qty: qty, price: avg, funding: 'cash', prin: prinOn,
+      reasons: [], mood: '', horizon: '장기', rule: '', memo: ''
+    };
+    var targetId = t ? t.id : rec.id;
+    var idx = -1;
+    state.data.trades.forEach(function(x, i){ if (x.id === targetId) idx = i; });
+    if (idx >= 0) state.data.trades[idx] = rec; else state.data.trades.push(rec);
+
+    if (cur != null) state.data.prices[name] = cur;
+    else if (state.data.prices[name] == null) state.data.prices[name] = avg;
+
+    var sec = secEl.value;
+    if (sec) state.data.sectors[name] = sec; else delete state.data.sectors[name];
+
+    state.demo = false;
+    persist(); renderAll();
+
+    if (stay){
+      nameEl.value = ''; qtyEl.value = ''; avgEl.value = ''; curEl.value = '';
+      secEl.value = ''; $('#hPrin').checked = true;
+      syncAmt(); syncDup(); syncSec();
+      toast(name + ' ' + fmt(qty) + '주 등록 · 다음 종목을 넣어 주세요.');
+      nameEl.focus();
+    } else {
+      closeSheet();
+      toast(name + ' ' + fmt(qty) + '주를 기존 보유로 ' + (t ? '수정했습니다.' : '등록했습니다.'));
+    }
+  }
+
+  $('#btnSaveHolding').onclick = function(){ saveHolding(false); };
+  if ($('#btnSaveMore')) $('#btnSaveMore').onclick = function(){ saveHolding(true); };
+
+  var delBtn = $('#btnDelHolding');
+  if (delBtn){
+    delBtn.onclick = function(){
+      if (delBtn.getAttribute('data-armed') !== '1'){
+        delBtn.setAttribute('data-armed', '1');
+        delBtn.textContent = '정말 삭제할까요?';
+        setTimeout(function(){ if (delBtn.getAttribute('data-armed') === '1'){ delBtn.removeAttribute('data-armed'); delBtn.textContent = '삭제'; } }, 3000);
+        return;
+      }
+      state.data.trades = state.data.trades.filter(function(x){ return x.id !== t.id; });
+      persist(); renderAll(); closeSheet(); toast('기존 보유 기록을 삭제했습니다.');
+    };
+  }
+}
+
 /* ========================================================== 현재가 수정 */
 function openPriceSheet(name){
   var cur = state.data.prices[name];
@@ -2130,6 +2346,7 @@ function bindEvents(){
     b.addEventListener('click', function(){ switchView(b.getAttribute('data-view')); });
   });
   $('#btnAddTrade').addEventListener('click', function(){ openTradeSheet(null); });
+  $('#btnAddHolding').addEventListener('click', function(){ openHoldingSheet(null); });
   $('#scrim').addEventListener('click', closeSheet);
   $('#sheetClose').addEventListener('click', closeSheet);
   document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && modalEl && modalEl.classList.contains('on')) closeSheet(); });
@@ -2179,8 +2396,9 @@ function bindEvents(){
   chart.addEventListener('pointerleave', curveLeave);
   chart.addEventListener('click', curveHover);
 
-  /* 보유 종목 현재가 */
+  /* 보유 종목 현재가 · 빈 화면의 기존 보유 추가 */
   $('#holdingsList').addEventListener('click', function(e){
+    if (e.target.closest('[data-addhold]')){ openHoldingSheet(null); return; }
     var b = e.target.closest('[data-price]');
     if (b) openPriceSheet(b.getAttribute('data-price'));
   });
@@ -2198,10 +2416,14 @@ function bindEvents(){
     renderTrades(compute());
   });
 
-  /* 타임라인 → 수정 */
+  /* 타임라인 → 수정 (기존 보유는 전용 시트) */
   $('#timeline').addEventListener('click', function(e){
     var card = e.target.closest('.tcard');
-    if (card) openTradeSheet(card.getAttribute('data-id'));
+    if (!card) return;
+    var id = card.getAttribute('data-id');
+    var tr = findTrade(id);
+    if (tr && tr.side === 'init') openHoldingSheet(id);
+    else openTradeSheet(id);
   });
 
   /* 배당 막대 — 클릭은 선택 고정, 호버는 미리보기(막대를 다시 그리지 않음) */

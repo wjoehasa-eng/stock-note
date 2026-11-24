@@ -1,5 +1,5 @@
 /**
- * 주식노트 — 구글 시트 백엔드 (Google Apps Script) v1.0.0
+ * 주식노트 — 구글 시트 백엔드 (Google Apps Script) v1.1.0
  * ==========================================================
  * 쓰는 법 (한 번만, 약 5분)
  *  1. 구글 드라이브에서 새 스프레드시트를 만듭니다. (예: 「내 주식노트 데이터」)
@@ -19,7 +19,11 @@
  *
  * 시트 구성 (없으면 자동으로 만듭니다)
  *  · 매매기록  : 날짜 | 종목명 | 구분 | 수량 | 단가 | 금액 | 재원 | 이유태그 | 분위기 | 목표기간 | 매도조건 | 메모 | ID
- *                구분 = 매수 / 매도 / 배당,  재원 = 현금 / 담보대출,  이유태그 = `,` 로 연결
+ *                구분 = 매수 / 매도 / 배당 / 초기보유,  재원 = 현금 / 담보대출,  이유태그 = `,` 로 연결
+ *                · 초기보유 = 앱 「+ 기존 보유 추가」로 넣은 "예전부터 들고 있던 종목".
+ *                  수량·평단·평가액에는 합산되고, 예수금·이유태그·분위기 통계에는 쓰이지 않습니다.
+ *                  ID 열이 i1-로 시작하면 '매수 총액을 순수 원금에 포함', i0-이면 미포함입니다.
+ *                    (이 접두어는 앱이 원금 포함 여부를 되살리려고 붙이는 표식이고, 일반 매매 ID에는 없습니다.)
  *  · 배당공시  : 종목명 | 월 | 주당예상 | 주당확정 | 수량 | 배당기준일 | 지급일 | 메모 | ID
  *                주당확정이 비어 있으면 '아직 공시 전'으로 보고 예상치를 씁니다.
  *  · 고수매칭  : 저자 | 제목 | 태그 | 핵심요지 | 출처 | ID
@@ -56,7 +60,7 @@
 /** 스프레드시트 ID. 시트에 붙인(컨테이너 바인딩) 스크립트라면 비워 두세요. */
 var SHEET_ID = '';
 
-var BACKEND_VERSION = '1.0.0';
+var BACKEND_VERSION = '1.1.0';
 
 var TABS = {
   trades: '매매기록',
@@ -85,8 +89,8 @@ var SETTING_KEYS = [
   ['concDanger', '집중도위험', '상위 종목 비중 위험 %']
 ];
 
-var SIDE_TO_KR = { buy: '매수', sell: '매도', div: '배당' };
-var KR_TO_SIDE = { '매수': 'buy', '매도': 'sell', '배당': 'div' };
+var SIDE_TO_KR = { buy: '매수', sell: '매도', div: '배당', init: '초기보유' };
+var KR_TO_SIDE = { '매수': 'buy', '매도': 'sell', '배당': 'div', '초기보유': 'init', '기존보유': 'init' };
 var FUND_TO_KR = { cash: '현금', loan: '담보대출' };
 var KR_TO_FUND = { '현금': 'cash', '담보대출': 'loan' };
 
@@ -183,12 +187,14 @@ function loadAll_() {
   var data = {
     settings: settings,
     prices: readPriceMap_(ss, settings),
+    sectors: (settings && settings._sectorsJson && typeof settings._sectorsJson === 'object') ? settings._sectorsJson : {},
     trades: readTrades_(ss),
     dividends: readDividends_(ss),
     gurus: readGurus_(ss),
     curve: readCurve_(ss)
   };
   delete data.settings._pricesJson;
+  delete data.settings._sectorsJson;
   return {
     ok: true, app: 'stocknote', version: BACKEND_VERSION,
     savedAt: data.settings.appConnectedAt || '',
@@ -214,6 +220,9 @@ function readSettings_(ss) {
   if (byKr['앱연결시각']) out.appConnectedAt = String(byKr['앱연결시각']);
   if (byKr['종목시세']) {
     try { out._pricesJson = JSON.parse(String(byKr['종목시세'])); } catch (e) {}
+  }
+  if (byKr['종목섹터']) {
+    try { out._sectorsJson = JSON.parse(String(byKr['종목섹터'])); } catch (e) {}
   }
   return out;
 }
@@ -250,6 +259,8 @@ function readTrades_(ss) {
       date: dateStr_(r[0]),
       name: name,
       side: KR_TO_SIDE[String(r[2] || '').trim()] || 'buy',
+      /* 기존 보유의 '원금에 더하기' 여부는 ID 접두어(i1-/i0-)로 되살립니다. */
+      prin: /^i1-/.test(String(r[12] || '')),
       qty: num_(r[3]),
       price: num_(r[4]),
       funding: KR_TO_FUND[String(r[6] || '').trim()] || 'cash',
@@ -363,7 +374,7 @@ function saveAll_(req) {
     writeDividends_(ss, divs);
     writeGurus_(ss, Array.isArray(data.gurus) ? data.gurus : []);
     writeCurve_(ss, Array.isArray(data.curve) ? data.curve : []);
-    writeSettings_(ss, settings, data.prices || {});
+    writeSettings_(ss, settings, data.prices || {}, data.sectors || {});
     writePrices_(ss, data.prices || {});
 
     return { ok: true, app: 'stocknote', version: BACKEND_VERSION, savedAt: new Date().toISOString() };
@@ -431,11 +442,12 @@ function writeCurve_(ss, list) {
   sh.getRange(2, 1, rows.length, HEADERS.curve.length).setValues(rows);
 }
 
-function writeSettings_(ss, s, prices) {
+function writeSettings_(ss, s, prices, sectors) {
   var sh = ensureHeader_(tab_(ss, TABS.settings, HEADERS.settings), HEADERS.settings);
   clearBody_(sh, HEADERS.settings.length);
   var rows = SETTING_KEYS.map(function(pair){ return [pair[1], num_(s[pair[0]]), pair[2]]; });
   rows.push(['종목시세', JSON.stringify(prices || {}), '앱이 저장한 현재가(JSON)']);
+  rows.push(['종목섹터', JSON.stringify(sectors || {}), '앱에서 직접 고른 종목별 섹터(JSON)']);
   rows.push(['앱연결시각', new Date().toISOString(), '앱이 마지막으로 저장한 시각']);
   sh.getRange(2, 1, rows.length, 3).setValues(rows);
 }

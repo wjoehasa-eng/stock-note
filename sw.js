@@ -1,4 +1,4 @@
-/* 주식노트 — 서비스 워커 v2
+/* 주식노트 — 서비스 워커 v3
  * 하는 일: 앱 껍데기(화면·매니페스트·아이콘)만 캐시해서 설치형 앱 조건을 채우고,
  *          오프라인에서도 마지막 화면을 연다. 데이터는 localStorage/구글 시트에만 있다.
  *
@@ -8,7 +8,7 @@
  *  · 저장(POST) 요청은 그대로 통과. #s=... 해시는 서버로 가지 않으므로 영향 없음.
  *  · 새 버전은 즉시 활성화(skipWaiting + clients.claim).
  */
-const CACHE = 'stock-note-v2';
+const CACHE = 'stock-note-v3';
 const SHELL = [
   './',
   './index.html',
