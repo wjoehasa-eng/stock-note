@@ -1,0 +1,4 @@
+_shots/
+_site/
+*.log
+.DS_Store
