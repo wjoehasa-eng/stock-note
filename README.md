@@ -90,14 +90,20 @@ Playwright/Chromium 로컬 서버(8791·8792)와 `file://` 로 확인:
 - 테마 자동→라이트→다크 순환, `#s=<base64>` 해시 파싱(잘못된 주소는 빨간 점)
 - 스크린샷: `downloads/stock-note-v1/` (01~11)
 
-## 설치형 앱(PWA) 검증 (2026-11-24, `test/pwa_check.py`)
+## 설치형 앱(PWA) 검증 (2026-11-24, `test/pwa_check.py` · `test/pwa_extra.py`)
 
-로컬 서버(8793) + Playwright/Chromium 으로 확인한 결과:
+로컬 서버(8793·8794) + Playwright/Chromium 으로 확인한 결과:
 
 - `manifest.webmanifest` HTTP 200 · `application/manifest+json` 파싱 정상
   (`name`·`short_name` 주식노트, `start_url`·`scope` `./`, `display` standalone, `theme_color` #3182F6, `background_color` #F2F4F6)
 - 아이콘 4종 HTTP 200 · 실제 픽셀 크기 192/512/512/180 일치, `any`/`maskable` 분리
 - `navigator.serviceWorker.ready` → `activated`, 재방문 후 문서가 서비스 워커에 제어됨, 캐시 `stock-note-v2` 에 껍데기 8개
+- 오프라인(네트워크 끔) 상태로 다시 열어도 화면이 캐시로 뜸
+- 360px 좁은 화면에서도 상단 설치 버튼이 탭바·설정을 밀어내지 않음
 - ⚙ 설정에 **앱으로 설치** 줄과 설치 안내 시트 표시, 콘솔 오류 0건
-- 스크린샷: `_shots/pwa-01-설정-설치줄.png`, `_shots/pwa-02-설치안내.png`
+- 스크린샷: `_shots/pwa-01-설정-설치줄.png`, `pwa-02-설치안내.png`, `pwa-03-모바일-상단바.png`, `pwa-04-오프라인.png`
+
+라이브(`https://wjoehasa-eng.github.io/stock-note/`)에서는 크롬이 설치 가능으로 판정해
+상단 설치 버튼이 나타났고, 누르면 크롬 **앱 설치** 창에 주식노트 아이콘·이름이 뜼는 것을 확인했습니다.
+
 
