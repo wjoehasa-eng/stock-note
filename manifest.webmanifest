@@ -1,0 +1,21 @@
+{
+  "name": "주식노트",
+  "short_name": "주식노트",
+  "description": "매매 이유와 결과를 한곳에 쌓고, 순수 원금 대비 진짜 수익·담보 여유·배당 공시 변경·고수 매칭을 한눈에 보는 설치형 웹앱. 기록은 이 기기와 내 구글 시트에만 저장됩니다.",
+  "lang": "ko",
+  "dir": "ltr",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#F2F4F6",
+  "theme_color": "#3182F6",
+  "categories": ["finance", "productivity"],
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-192-maskable.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "./icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

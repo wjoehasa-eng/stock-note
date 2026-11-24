@@ -1,15 +1,29 @@
-# 주식노트 (stock-note) v1.0
+# 주식노트 (stock-note) v1.1
 
 토스 스타일로 만든 **매매 복기 · 배당 · 위기 신호 · 고수 매칭** 웹앱. 1차 설계·시제품입니다.
 
 **바로 열기: https://wjoehasa-eng.github.io/stock-note/** (예시 화면만 보기: `?demo=1`)
 
 - 파일: `index.html` (단일 파일, 로컬 파일로 그대로 열어도 동작)
+- 설치형 앱(PWA): `manifest.webmanifest` · `sw.js` · `icon-192.png` · `icon-512.png` · `icon-192-maskable.png` · `icon-512-maskable.png` · `apple-touch-icon.png` (아이콘은 `test/gen_icons.py` 로 재생성)
 - 백엔드(선택): `apps-script/Code.gs` — 본인 구글 시트에 붙여 배포
 - 저장: ① 이 브라우저(localStorage) ② (연결 시) 본인 구글 시트
-- 검증 스크립트: `test/screenshots.py` (로컬 서버 + Playwright/Chromium)
+- 검증 스크립트: `test/screenshots.py`(화면), `test/pwa_check.py`(매니페스트·아이콘·서비스 워커·설치 UI)
 - 개인정보: 이 폴더의 코드·예시 데이터에는 실제 보유 종목·수량·금액이 **하나도** 없습니다.
   기본 화면은 삼성전자·SK텔레콤·맥쿼리인프라·KB금융으로 만든 **가상 예시**입니다.
+
+## 앱으로 설치 (v1.1)
+
+주소창 없는 앱처럼 쓰려면 한 번만 설치하면 됩니다. 같은 주소·같은 기록을 그대로 씁니다.
+
+- **안드로이드 크롬 / 웨일 / 삼성인터넷**: 페이지를 연 뒤 오른쪽 위 **메뉴(점 3개)** → **앱 설치**(또는 **홈 화면에 추가**).
+  앱이 설치 가능해지면 상단 오른쪽에 **⬇ 설치 버튼**이 나타나고, ⚙ 설정 → **앱으로 설치**에서도 한 번에 됩니다.
+- **아이폰·아이패드(사파리)**: **공유** → **홈 화면에 추가** → **추가**.
+- 설치 후에는 주소창·브라우저 탭 없이 열리고, 앱 전환기에서도 독립 앱으로 뜹니다.
+- 이미 열어 둔 탭이 있다면 **탭을 닫고 새로 연 뒤** 설치하세요(예전 화면에는 새 매니페스트가 없습니다).
+
+`sw.js` 는 앱 껍데기(화면·매니페스트·아이콘)만 캐시합니다. 화면 문서는 항상 네트워크 최신을 먼저 받고,
+구글 시트(`script.google.com`)·`#s=` 해시·POST 저장 요청은 건드리지 않습니다. 새 버전은 `CACHE` 이름을 올리면 바로 반영됩니다.
 
 ## 여는 법
 
@@ -75,3 +89,15 @@ Playwright/Chromium 로컬 서버(8791·8792)와 `file://` 로 확인:
 - 필터(매도 3건 / 매도+배당 1건), 현재가 수정 → 총 자산 변동, 배당 6월·7월 막대 상세
 - 테마 자동→라이트→다크 순환, `#s=<base64>` 해시 파싱(잘못된 주소는 빨간 점)
 - 스크린샷: `downloads/stock-note-v1/` (01~11)
+
+## 설치형 앱(PWA) 검증 (2026-11-24, `test/pwa_check.py`)
+
+로컬 서버(8793) + Playwright/Chromium 으로 확인한 결과:
+
+- `manifest.webmanifest` HTTP 200 · `application/manifest+json` 파싱 정상
+  (`name`·`short_name` 주식노트, `start_url`·`scope` `./`, `display` standalone, `theme_color` #3182F6, `background_color` #F2F4F6)
+- 아이콘 4종 HTTP 200 · 실제 픽셀 크기 192/512/512/180 일치, `any`/`maskable` 분리
+- `navigator.serviceWorker.ready` → `activated`, 재방문 후 문서가 서비스 워커에 제어됨, 캐시 `stock-note-v2` 에 껍데기 8개
+- ⚙ 설정에 **앱으로 설치** 줄과 설치 안내 시트 표시, 콘솔 오류 0건
+- 스크린샷: `_shots/pwa-01-설정-설치줄.png`, `_shots/pwa-02-설치안내.png`
+

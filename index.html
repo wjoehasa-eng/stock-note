@@ -7,6 +7,8 @@
   · 구글 시트 연결: 배포한 웹 앱(.../exec) 주소를 ⚙ 설정에 넣거나,
     주소창 끝에 #s=<base64 주소> 를 붙여 즐겨찾기합니다(my-portal 과 같은 방식).
   · 데모: ?demo=1 또는 저장된 데이터가 없을 때 자동으로 예시 데이터로 시작합니다.
+  · v1.1: 설치형 앱(PWA) — manifest.webmanifest · sw.js(오프라인 껍데기) · 아이콘(192/512/maskable/apple-touch)
+    · 설정과 상단 버튼에서 '앱으로 설치' (안드로이드는 원클릭, iOS는 사파리 공유 → 홈 화면에 추가)
 -->
 <html lang="ko" data-theme="light">
 <head>
@@ -16,6 +18,14 @@
 <meta name="theme-color" content="#F2F4F6">
 <meta name="description" content="매매 이유와 결과를 한곳에 쌓고, 순수 원금 대비 진짜 수익·담보 여유·배당 공시 변경·고수 매칭을 한눈에 봅니다.">
 <title>주식노트</title>
+<!-- 설치형 앱(PWA): 홈 화면에 추가하면 주소창 없는 앱으로 열립니다 -->
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="주식노트">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <style>
 /* ============================================================ 디자인 토큰 */
 :root{
@@ -483,6 +493,12 @@ textarea.inp{height:auto;min-height:78px;padding:12px 14px;line-height:1.5;resiz
 .ptip p{margin:6px 0 0}
 .ptip .ptip-eq{margin-top:10px;padding-top:10px;border-top:1px solid var(--line2);color:var(--ink);font-weight:600}
 
+/* ============================================================ 설치 안내 */
+.install-steps{margin:2px 0 0;padding-left:20px;color:var(--ink2);font-size:14.5px;line-height:1.7}
+.install-steps li{margin-bottom:7px}
+.install-steps b{color:var(--ink);font-weight:700}
+.install-note{margin-top:14px;padding:12px 14px;border-radius:var(--r-sm);background:var(--card2);color:var(--sub);font-size:12.5px;line-height:1.6}
+
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -497,6 +513,11 @@ textarea.inp{height:auto;min-height:78px;padding:12px 14px;line-height:1.5;resiz
       <button data-view="gurus">고수 매칭</button>
     </nav>
     <div class="topright">
+      <button class="iconbtn hidden" id="btnInstallTop" aria-label="앱으로 설치" title="앱으로 설치">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 4v10.5"/><path d="M7.6 10.2 12 14.6l4.4-4.4"/><path d="M5 19.5h14"/>
+        </svg>
+      </button>
       <button class="iconbtn" id="btnTheme" aria-label="테마 바꾸기" title="테마">
         <svg id="icoTheme" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.5 6.5 0 0 0 9.8 9.8Z"/>
@@ -715,7 +736,7 @@ textarea.inp{height:auto;min-height:78px;padding:12px 14px;line-height:1.5;resiz
 
 /* ========================================================== 상수 */
 var LS = { data:'stocknote.data.v1', url:'stocknote.url', theme:'stocknote.theme' };
-var APP_VERSION = '1.0.0';
+var APP_VERSION = '1.1.0';
 var REASONS = ['실적·수주','배당','저평가','차트·수급','물타기','리밸런싱','감정·불안'];
 var MOODS = ['공포','보통','과열'];
 var HORIZONS = ['단기','중기','장기'];
@@ -1836,6 +1857,8 @@ function openSettings(){
     '<div class="field"><label>화면 테마</label><div class="seg" id="segTheme">' +
       [['auto','자동'],['light','라이트'],['dark','다크']].map(function(x){ return '<button type="button" data-theme="' + x[0] + '" class="' + (themePref === x[0] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') +
     '</div></div>' +
+    '<div class="setrow"><div><div class="sk">앱으로 설치</div><div class="ss" id="installHint">' + installHintText() + '</div></div>' +
+      '<button class="btn sm" id="btnInstall">' + (isStandalone() ? '설치됨' : '설치') + '</button></div>' +
     '<div class="field"><label for="setPrincipal">순수 원금 (내 돈으로 넣은 총액)</label>' +
       '<input class="inp num" id="setPrincipal" type="number" inputmode="numeric" min="0" step="10000" value="' + s.principal + '">' +
       '<p class="calc-note">배당·매도대금을 다시 넣은 돈은 원금으로 치지 않습니다. 그래야 재투입 착시 없이 진짜 수익이 보입니다.</p></div>' +
@@ -1870,6 +1893,8 @@ function openSettings(){
       renderCurve(compute());
     };
   });
+
+  if ($('#btnInstall')) $('#btnInstall').onclick = function(){ startInstall(); };
 
   $('#btnSaveSettings').onclick = function(){
     var p = num($('#setPrincipal').value);
@@ -2119,6 +2144,7 @@ function bindEvents(){
     toast(next === 'auto' ? '테마: 기기 설정 따름' : (next === 'dark' ? '테마: 다크' : '테마: 라이트'));
   });
   $('#btnSettings').addEventListener('click', openSettings);
+  $('#btnInstallTop').addEventListener('click', startInstall);
   $('#btnStartPrincipal').addEventListener('click', openSettings);
   $('#btnStartMine').addEventListener('click', function(){
     state.data = emptyData(); state.demo = false;
@@ -2212,6 +2238,101 @@ function bindEvents(){
   if (mq.addEventListener) mq.addEventListener('change', function(){ if ((localStorage.getItem(LS.theme) || 'auto') === 'auto'){ applyTheme(); renderCurve(compute()); } });
 }
 
+/* ========================================================== 설치(PWA) */
+var installPrompt = null;
+var installInstalled = false;
+
+function isStandalone(){
+  try {
+    return window.matchMedia('(display-mode: standalone)').matches ||
+           window.matchMedia('(display-mode: minimal-ui)').matches ||
+           window.navigator.standalone === true;
+  } catch(e){ return false; }
+}
+function isIOS(){
+  var ua = navigator.userAgent || '';
+  return /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+}
+function installHintText(){
+  if (isStandalone()) return '이미 앱으로 열려 있습니다.';
+  if (installPrompt) return '한 번 누르면 홈 화면에 추가됩니다.';
+  if (isIOS()) return '사파리 공유 → 홈 화면에 추가';
+  return '브라우저 메뉴 → 앱 설치 / 홈 화면에 추가';
+}
+function refreshInstallUI(){
+  var top = $('#btnInstallTop');
+  if (top) top.classList.toggle('hidden', !installPrompt || isStandalone());
+  var hint = $('#installHint');
+  if (hint) hint.textContent = installHintText();
+  var bi = $('#btnInstall');
+  if (bi) bi.textContent = isStandalone() ? '설치됨' : '설치';
+}
+function startInstall(){
+  if (isStandalone()){ toast('이미 앱으로 설치되어 있습니다.'); return; }
+  if (installPrompt){
+    installPrompt.prompt();
+    installPrompt.userChoice.then(function(choice){
+      if (choice && choice.outcome === 'accepted') toast('설치를 시작했습니다. 홈 화면을 확인해 보세요.');
+      else toast('설치를 취소했습니다. 언제든 설정에서 다시 할 수 있어요.');
+      installPrompt = null;
+      refreshInstallUI();
+    });
+    return;
+  }
+  openInstallGuide();
+}
+function openInstallGuide(){
+  var steps = isIOS()
+    ? '<li>이 페이지를 <b>사파리</b>로 엽니다.</li>' +
+      '<li>화면 아래(또는 위)의 <b>공유</b> 버튼을 누릅니다.</li>' +
+      '<li>목록에서 <b>홈 화면에 추가</b>를 고르고 <b>추가</b>를 누릅니다.</li>'
+    : '<li>이 페이지를 <b>크롬 · 삼성인터넷 · 웨일</b>로 엽니다.</li>' +
+      '<li>오른쪽 위 <b>메뉴</b>(점 3개)를 누릅니다.</li>' +
+      '<li><b>앱 설치</b> 또는 <b>홈 화면에 추가</b>를 고른 뒤 확인합니다.</li>';
+  var html =
+    '<ol class="install-steps">' + steps + '</ol>' +
+    (isIOS()
+      ? '<div class="install-note">아이폰·아이패드는 사파리에서만 홈 화면에 추가할 수 있습니다. 카카오톡·네이버 앱 안에서 열었다면 오른쪽 위 <b>⋯</b> → <b>사파리로 열기</b>를 먼저 눌러 주세요.</div>'
+      : '<div class="install-note">설치하면 주소창 없는 앱으로 열리고, 홈 화면 아이콘으로 바로 시작됩니다. 기록은 지금처럼 이 기기와 내 구글 시트에만 저장됩니다.</div>') +
+    '<div class="sheet-actions"><button class="btn primary block" id="btnGuideClose">알겠어요</button></div>';
+  openSheet('앱으로 설치', html);
+  $('#btnGuideClose').onclick = closeSheet;
+}
+function initInstall(){
+  installInstalled = isStandalone();
+  refreshInstallUI();
+
+  window.addEventListener('beforeinstallprompt', function(e){
+    e.preventDefault();            // 브라우저가 띄우는 미니 배너 대신 내 버튼으로 설치
+    installPrompt = e;
+    refreshInstallUI();
+  });
+  window.addEventListener('appinstalled', function(){
+    installPrompt = null;
+    installInstalled = true;
+    refreshInstallUI();
+    toast('주식노트를 홈 화면에 설치했습니다.');
+  });
+  window.matchMedia('(display-mode: standalone)').addEventListener &&
+    window.matchMedia('(display-mode: standalone)').addEventListener('change', function(){ refreshInstallUI(); });
+
+  if ('serviceWorker' in navigator){
+    window.addEventListener('load', function(){
+      navigator.serviceWorker.register('./sw.js').then(function(reg){
+        // 새 버전이 준비되면 지금 열린 화면을 새 코드로 바뀜
+        if (reg && reg.waiting) reg.waiting.postMessage('skipWaiting');
+        reg.addEventListener && reg.addEventListener('updatefound', function(){
+          var nw = reg.installing;
+          if (!nw) return;
+          nw.addEventListener('statechange', function(){
+            if (nw.state === 'installed' && navigator.serviceWorker.controller) nw.postMessage('skipWaiting');
+          });
+        });
+      }).catch(function(){ /* http:// 로컬 파일 등에서는 조용히 넘어감 */ });
+    });
+  }
+}
+
 /* ========================================================== 시작 */
 function init(){
   applyTheme();
@@ -2240,6 +2361,7 @@ function init(){
   if (state.url) setDot('idle', '시트 연결 확인 중');
 
   bindEvents();
+  initInstall();
   renderAll();
   switchView('home');
 
