@@ -2,6 +2,8 @@
 
 토스 스타일로 만든 **매매 복기 · 배당 · 위기 신호 · 고수 매칭** 웹앱. 1차 설계·시제품입니다.
 
+**바로 열기: https://wjoehasa-eng.github.io/stock-note/** (예시 화면만 보기: `?demo=1`)
+
 - 파일: `index.html` (단일 파일, 로컬 파일로 그대로 열어도 동작)
 - 백엔드(선택): `apps-script/Code.gs` — 본인 구글 시트에 붙여 배포
 - 저장: ① 이 브라우저(localStorage) ② (연결 시) 본인 구글 시트
