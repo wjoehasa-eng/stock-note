@@ -8,7 +8,7 @@
 - 설치형 앱(PWA): `manifest.webmanifest` · `sw.js`(캐시 `stock-note-v4`) · `icon-192.png` · `icon-512.png` · `icon-192-maskable.png` · `icon-512-maskable.png` · `apple-touch-icon.png` (아이콘은 `test/gen_icons.py` 로 재생성)
 - 백엔드(선택): `apps-script/Code.gs` **v1.2.0** — 본인 구글 시트에 붙여 배포
 - 저장: ① 이 브라우저(localStorage) ② (연결 시) 본인 구글 시트
-- 검증 스크립트: `test/v2_check.py`(v2.0 화면·기능 회귀), `test/backend_sim.py`(Code.gs 시뮬레이션), `test/screenshots.py`, `test/pwa_check.py`
+- 검증 스크립트: `test/v2_check.py`(v2.0 화면·기능 회귀), `test/backend_sim.py`(Code.gs 시뮬레이션), `test/price_auto_check.py`(열 때 현재가 자동 갱신), `test/privacy_check.py`(공개 저장소 개인정보 검사), `test/screenshots.py`, `test/pwa_check.py`
 - 개인정보: 이 폴더의 코드·예시 데이터에는 실제 보유 종목·수량·금액이 **하나도** 없습니다.
   기본 화면은 삼성전자·SK텔레콤·맥쿼리인프라·KB금융으로 만든 **가상 예시**입니다.
 
@@ -123,7 +123,7 @@ python3 -m http.server 8791
 
 예전 방식(`시세` 탭 C열 `=IF(B2="","",GOOGLEFINANCE("KRX:" & B2))`)도 그대로 쓸 수 있습니다(지연 시세·참고값).
 
-## v2.0 검증 (2026-11-25, `test/v2_check.py` · `test/backend_sim.py`)
+## v2.0 검증 (2026-11-25, `test/v2_check.py` · `test/backend_sim.py` · `test/price_auto_check.py`)
 
 로컬 서버 + Playwright/Chromium 으로 확인(41/41 통과):
 
@@ -138,6 +138,9 @@ python3 -m http.server 8791
 `Code.gs v1.2.0` 은 가짜 스프레드시트·`UrlFetchApp` 목업으로 그대로 실행해 검증(39/39 통과):
 종목코드 자동 채움, 현재가 파싱(`171,900` → 171900), 60초 캐시로 재호출 없음, `GOOGLEFINANCE` 수식 보존,
 실패 시 기존 숫자 폴백, `save`→`load` 왕복(초기보유·직접 입력 태그·섹터·설정), 빈 저장 거부, v1.1 시트 하위 호환.
+
+앱 열기 자동 갱신(`test/price_auto_check.py`, 6/6): 열면 `load` 다음에 `prices` 를 한 번 부르고,
+현재가가 기기에 반영되며 점이 초록으로 바뀝니다. 응답이 실패해도 기존 숫자와 화면은 그대로입니다.
 
 ## v1.2 검증 (2026-11-24, `test/holdings_check.py`)
 
