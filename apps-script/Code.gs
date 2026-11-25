@@ -444,13 +444,15 @@ function refreshPrices_(ss) {
   var sh = ensureHeader_(tab_(ss, TABS.prices, HEADERS.prices), HEADERS.prices);
   var last = sh.getLastRow();
   var values = last > 1 ? sh.getRange(2, 1, last - 1, 4).getValues() : [];
+  /* C열 수식은 한 번에 읽습니다(줄마다 부르면 느림) */
+  var formulas = last > 1 ? sh.getRange(2, 3, last - 1, 1).getFormulas() : [];
   var entries = [], byName = {};
   values.forEach(function(r, i){
     var name = String(r[0] || '').trim();
     if (!name) return;
     var e = {
       row: i + 2, name: name, code: String(r[1] || '').trim(),
-      value: num_(r[2]), formula: sh.getRange(i + 2, 3).getFormula()
+      value: num_(r[2]), formula: String((formulas[i] || [''])[0] || '')
     };
     entries.push(e); byName[name] = e;
   });

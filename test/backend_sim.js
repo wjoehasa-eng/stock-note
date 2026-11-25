@@ -33,6 +33,18 @@
       const v = this.sh._get(this.r, this.c);
       return (typeof v === 'string' && v.charAt(0) === '=') ? v : '';
     }
+    getFormulas() {
+      const rows = [];
+      for (let i = 0; i < this.nr; i++) {
+        const row = [];
+        for (let j = 0; j < this.nc; j++) {
+          const v = this.sh._get(this.r + i, this.c + j);
+          row.push(typeof v === 'string' && v.charAt(0) === '=' ? v : '');
+        }
+        rows.push(row);
+      }
+      return rows;
+    }
     setFormula(f) { return this.setValue(f); }
     clearContent() {
       for (let i = 0; i < this.nr; i++) for (let j = 0; j < this.nc; j++) this.sh._set(this.r + i, this.c + j, '');
