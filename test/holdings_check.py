@@ -42,7 +42,7 @@ async def main():
                   [("mini", "#sumMini"), ("hero", "#heroSub"), ("assets", "#sumAssets")]}
         await pg.click('#pillTabs button[data-view="trades"]'); await pg.wait_for_timeout(250)
         before["tags"] = await pg.inner_text("#tagStats")
-        before["moods"] = await pg.inner_text("#moodTiles")
+        before["moods"] = await pg.inner_text("#moodStats")
         await pg.click('#pillTabs button[data-view="home"]'); await pg.wait_for_timeout(250)
         cash0 = cash_of(before["mini"])
         await pg.screenshot(path=f"{OUT}/hold-00-home-before.png")
@@ -75,7 +75,7 @@ async def main():
 
         await pg.click('#pillTabs button[data-view="trades"]'); await pg.wait_for_timeout(350)
         print("tag stats unchanged:", before["tags"] == await pg.inner_text("#tagStats"),
-              "| mood unchanged:", before["moods"] == await pg.inner_text("#moodTiles"))
+              "| mood unchanged:", before["moods"] == await pg.inner_text("#moodStats"))
         print("count:", await pg.inner_text("#tradeCount"))
         await pg.screenshot(path=f"{OUT}/hold-05-trades.png")
         await pg.click('#typeFilter [data-type="init"]'); await pg.wait_for_timeout(300)
@@ -100,7 +100,7 @@ async def main():
 
         # 기존 보유만 있는 종목을 매도하면 평단 기준으로 실현손익, 태그·분위기 통계는 그대로
         tags0 = await pg.inner_text("#tagStats")
-        moods0 = await pg.inner_text("#moodTiles")
+        moods0 = await pg.inner_text("#moodStats")
         await pg.evaluate("""() => {
           const d = JSON.parse(localStorage.getItem('stocknote.data.v1'));
           d.trades.push({id:'i1-legacy', date:'2026-11-01', name:'기아', side:'init', qty:7, price:100000,
@@ -116,7 +116,7 @@ async def main():
         print("realized:", (re.search(r"매도 실현\s*([+\-−\d,]+원)", mini) or ["", mini])[1],
               "| holdings 2주:", "2주" in (await pg.inner_text("#holdingsList")),
               "| tag stats unchanged:", tags0 == (await pg.inner_text("#tagStats")),
-              "| mood unchanged:", moods0 == (await pg.inner_text("#moodTiles")))
+              "| mood unchanged:", moods0 == (await pg.inner_text("#moodStats")))
 
         await pg.evaluate("""() => {   // 예전 백엔드가 '매수'로 되돌린 행도 복원되는지
           const d = JSON.parse(localStorage.getItem('stocknote.data.v1'));

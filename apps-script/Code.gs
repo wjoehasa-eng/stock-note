@@ -1,5 +1,5 @@
 /**
- * 주식노트 — 구글 시트 백엔드 (Google Apps Script) v1.1.0
+ * 주식노트 — 구글 시트 백엔드 (Google Apps Script) v1.2.0
  * ==========================================================
  * 쓰는 법 (한 번만, 약 5분)
  *  1. 구글 드라이브에서 새 스프레드시트를 만듭니다. (예: 「내 주식노트 데이터」)
@@ -32,20 +32,27 @@
  *  · 설정      : 항목 | 값 | 비고
  *  · 시세      : 종목명 | 종목코드 | 현재가 | 갱신시각      (선택 · GOOGLEFINANCE 용)
  *
- * ── 시세 자동화 (선택) ──────────────────────────────────────────
- *  시세 탭의 C열(현재가)에 아래처럼 구글 파이낸스 함수를 넣으면 20분 간격으로 갱신됩니다.
+ * ── 시세 자동화 (v1.2.0 부터 기본) ─────────────────────────────
+ *  저장(save)과 시세 조회(prices) 요청마다 아래 순서로 움직입니다.
+ *   ① 매매기록에 있는 종목 중 시세 탭에 없는 종목을 시세 탭에 추가
+ *   ② 종목코드가 빈 종목은 네이버 금융 검색(ac.stock.naver.com)으로 6자리 종목코드를 찾아 채움
+ *   ③ 코드가 있는 종목의 현재가를 네이버 금융(m.stock.naver.com/api/stock/{code}/basic)에서 받아
+ *      시세 탭 C열의 숫자를 갱신 (60초 캐시 · 하루 호출 한도 보호)
+ *  · C열에 GOOGLEFINANCE 수식이 들어 있는 칸은 수식을 지우지 않고 그대로 둡니다.
+ *  · 네이버가 응답하지 못한 종목은 시세 탭에 남아 있던 숫자를 그대로 돌려 줍니다(폴백).
+ *  · 시세는 지연 시세이고 휴장일에는 전일 종가가 남습니다. 기록의 원본은 앱·시트이고 시세는 참고값입니다.
+ *
+ *  ※ 예전 방식(GOOGLEFINANCE)도 그대로 살아 있습니다.
  *      =IF(B2="","",GOOGLEFINANCE("KRX:" & B2))
- *  B열(종목코드)에는 6자리 종목코드를 넣습니다. 예) 삼성전자 005930, SK텔레콤 017670,
- *  KB금융 105560, 맥쿼리인프라 088980.  (KRX 상장 종목만 지원)
- *  앱 ⚙ 설정 → '현재가 자동 불러오기'를 누르면 이 탭의 숫자를 읽어 평가액을 갱신합니다.
- *  ⚠ GOOGLEFINANCE 는 실시간이 아니라 지연 시세이고, 휴장일에는 전일 종가가 남습니다.
- *    배당·수량 같은 기록의 원본은 앱(또는 이 시트)이고, 시세는 참고값으로만 쓰세요.
+ *    종목코드를 직접 넣어 두면 그 코드를 그대로 씁니다(네이버 검색 생략).
+ *    예) 삼성전자 005930, SK텔레콤 017670, KB금융 105560, 맥쿼리인프라 088980
  *
  * API (브라우저는 JSONP GET 또는 text/plain POST 를 씁니다)
  *  ?action=ping                     연결 확인
  *  ?action=load                     전체 읽기 { ok, app, version, savedAt, data:{settings,prices,trades,dividends,gurus,curve} }
- *  ?action=prices                   시세 탭의 현재 숫자만 읽기 { ok, prices:{종목명:현재가}, updated }
- *  ?action=save  (POST, JSON)       화면 상태 전체를 시트에 한 번에 저장
+ *  ?action=prices                   네이버 금융에서 현재가를 받아 시세 탭을 갱신하고 반환
+ *                                   { ok, prices:{종목명:현재가}, codes:{종목명:종목코드}, updated, refreshed }
+ *  ?action=save  (POST, JSON)       화면 상태 전체를 시트에 한 번에 저장 → 저장 뒤 시세도 같이 갱신
  *  ?callback=함수이름               JSONP 로 감싸서 응답
  *
  * 안전장치
@@ -60,7 +67,7 @@
 /** 스프레드시트 ID. 시트에 붙인(컨테이너 바인딩) 스크립트라면 비워 두세요. */
 var SHEET_ID = '';
 
-var BACKEND_VERSION = '1.1.0';
+var BACKEND_VERSION = '1.2.0';
 
 var TABS = {
   trades: '매매기록',
@@ -188,6 +195,7 @@ function loadAll_() {
     settings: settings,
     prices: readPriceMap_(ss, settings),
     sectors: (settings && settings._sectorsJson && typeof settings._sectorsJson === 'object') ? settings._sectorsJson : {},
+    customReasons: (settings && settings._customReasonsJson && typeof settings._customReasonsJson === 'object') ? settings._customReasonsJson : {},
     trades: readTrades_(ss),
     dividends: readDividends_(ss),
     gurus: readGurus_(ss),
@@ -195,6 +203,7 @@ function loadAll_() {
   };
   delete data.settings._pricesJson;
   delete data.settings._sectorsJson;
+  delete data.settings._customReasonsJson;
   return {
     ok: true, app: 'stocknote', version: BACKEND_VERSION,
     savedAt: data.settings.appConnectedAt || '',
@@ -223,6 +232,9 @@ function readSettings_(ss) {
   }
   if (byKr['종목섹터']) {
     try { out._sectorsJson = JSON.parse(String(byKr['종목섹터'])); } catch (e) {}
+  }
+  if (byKr['이유태그']) {
+    try { out._customReasonsJson = JSON.parse(String(byKr['이유태그'])); } catch (e) {}
   }
   return out;
 }
@@ -331,11 +343,25 @@ function readCurve_(ss) {
   return out;
 }
 
+/* ------------------------------------------------------------------ 시세 (네이버 금융) */
+
+var NAVER_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15';
+var PRICE_CACHE_SEC = 60;
+
+/**
+ * 시세 조회 = 네이버 금융에서 받아 시세 탭을 갱신하고 앱에 돌려 줍니다.
+ * 실패한 종목은 시세 탭에 있던 숫자를 그대로 돌려 줍니다.
+ */
 function readPrices_() {
   var ss = ss_();
+  var fresh = null;
+  try { fresh = refreshPrices_(ss); } catch (e) { fresh = null; }
+  if (fresh && fresh.ok && Object.keys(fresh.prices || {}).length) return fresh;
+
+  /* 폴백: 시트 숫자 그대로 (GOOGLEFINANCE 수식 결과 포함) */
   var sh = ss.getSheetByName(TABS.prices);
   if (!sh) {
-    return { ok: false, error: '시세 탭이 없습니다. Code.gs를 다시 실행해 탭을 만들고, 종목코드를 채워 주세요.' };
+    return { ok: false, error: '시세 탭이 없습니다. 시트를 한 번 저장(앱에서 매매 기록)하면 자동으로 만들어집니다.' };
   }
   var prices = {};
   var updated = '';
@@ -348,7 +374,145 @@ function readPrices_() {
       if (r[3]) updated = String(r[3]);
     });
   }
-  return { ok: true, prices: prices, updated: updated };
+  return { ok: true, prices: prices, codes: {}, updated: updated, refreshed: 0, fallback: true };
+}
+
+/** 매매기록 탭에 나오는 종목명 목록(중복 제거) */
+function tradeNames_(ss) {
+  var out = [], seen = {};
+  var sh = ss.getSheetByName(TABS.trades);
+  if (!sh || sh.getLastRow() < 2) return out;
+  var rows = sh.getRange(2, 2, sh.getLastRow() - 1, 1).getValues();
+  rows.forEach(function(r){
+    var n = String(r[0] || '').trim();
+    if (n && !seen[n]) { seen[n] = 1; out.push(n); }
+  });
+  return out;
+}
+
+/** 종목명 → 6자리 종목코드 (네이버 금융 검색). 실패하면 '' */
+function naverCode_(name) {
+  name = String(name || '').trim();
+  if (!name) return '';
+  if (/^\d{6}$/.test(name)) return name;          /* 종목명 칸에 코드를 직접 넣은 경우 */
+  var cache = CacheService.getScriptCache();
+  var key = 'code:' + name;
+  var hit = cache.get(key);
+  if (hit) return hit === '-' ? '' : hit;
+  var code = '';
+  try {
+    var url = 'https://ac.stock.naver.com/ac?q=' + encodeURIComponent(name) + '&target=stock';
+    var res = UrlFetchApp.fetch(url, { muteHttpExceptions: true, headers: { 'User-Agent': NAVER_UA } });
+    if (res.getResponseCode() === 200) {
+      var j = JSON.parse(res.getContentText());
+      var items = (j && j.items) || [];
+      var dom = items.filter(function(it){ return it && String(it.nationCode || 'KOR') === 'KOR'; });
+      var flat = String(name).replace(/\s+/g, '');
+      var exact = dom.filter(function(it){ return String(it.name || '').replace(/\s+/g, '') === flat; })[0];
+      var pick = exact || dom[0] || items[0];
+      if (pick && /^[0-9A-Z]{6}$/.test(String(pick.code || ''))) code = String(pick.code);
+    }
+  } catch (e) { code = ''; }
+  try { cache.put(key, code || '-', code ? 21600 : 600); } catch (e) {}
+  return code;
+}
+
+/** 종목코드 → 현재가 (네이버 금융 모바일 API). 실패하면 0 */
+function naverPrice_(code) {
+  code = String(code || '').trim();
+  if (!code) return 0;
+  try {
+    var url = 'https://m.stock.naver.com/api/stock/' + encodeURIComponent(code) + '/basic';
+    var res = UrlFetchApp.fetch(url, { muteHttpExceptions: true, headers: { 'User-Agent': NAVER_UA } });
+    if (res.getResponseCode() !== 200) return 0;
+    var j = JSON.parse(res.getContentText());
+    var p = num_(j && j.closePrice);
+    if (p > 0) return p;
+    p = num_(j && j.lastClosePrice);
+    return p > 0 ? p : 0;
+  } catch (e) { return 0; }
+}
+
+/**
+ * 시세 탭을 최신으로:
+ *  · 매매기록에 있는데 시세 탭에 없는 종목 → 줄 추가
+ *  · 코드가 빈 종목 → 네이버 검색으로 코드 채움
+ *  · 코드가 있는 종목 → 네이버 현재가로 C열 갱신(수식이 있는 칸은 건드리지 않음)
+ */
+function refreshPrices_(ss) {
+  ss = ss || ss_();
+  var sh = ensureHeader_(tab_(ss, TABS.prices, HEADERS.prices), HEADERS.prices);
+  var last = sh.getLastRow();
+  var values = last > 1 ? sh.getRange(2, 1, last - 1, 4).getValues() : [];
+  var entries = [], byName = {};
+  values.forEach(function(r, i){
+    var name = String(r[0] || '').trim();
+    if (!name) return;
+    var e = {
+      row: i + 2, name: name, code: String(r[1] || '').trim(),
+      value: num_(r[2]), formula: sh.getRange(i + 2, 3).getFormula()
+    };
+    entries.push(e); byName[name] = e;
+  });
+
+  /* ① 매매기록 종목 중 빠진 줄 추가 */
+  var added = 0;
+  tradeNames_(ss).forEach(function(n){
+    if (byName[n] || entries.length >= 80) return;
+    var row = sh.getLastRow() + 1;
+    sh.getRange(row, 1, 1, 4).setValues([[n, '', '', '']]);
+    var e = { row: row, name: n, code: '', value: 0, formula: '' };
+    entries.push(e); byName[n] = e; added += 1;
+  });
+
+  /* ② 종목코드 채우기 */
+  var codes = {}, coded = 0;
+  entries.forEach(function(e){
+    if (!e.code) {
+      var c = naverCode_(e.name);
+      if (c) { e.code = c; sh.getRange(e.row, 2).setValue(c); coded += 1; }
+    }
+    if (e.code) codes[e.name] = e.code;
+  });
+
+  /* ③ 현재가 (60초 캐시) */
+  var cached = cacheGet_('prices');
+  var prices = {}, got = 0, failed = 0;
+  entries.forEach(function(e){
+    if (!e.code) {
+      /* 코드를 못 찾았어도 시세 탭에 숫자가 있으면 그 값을 그대로 전달합니다. */
+      if (e.value > 0) prices[e.name] = e.value;
+      return;
+    }
+    var p = num_(cached[e.name]);
+    if (!(p > 0)) p = naverPrice_(e.code);
+    if (p > 0) {
+      prices[e.name] = p; got += 1;
+      if (!e.formula) sh.getRange(e.row, 3).setValue(p);    /* GOOGLEFINANCE 수식은 보존 */
+    } else {
+      failed += 1;
+      if (e.value > 0) prices[e.name] = e.value;            /* 실패 시 기존 숫자 폴백 */
+    }
+  });
+  if (got) cachePut_('prices', prices);
+
+  var now = new Date();
+  if (entries.length) sh.getRange(2, 4).setValue(now);
+  return {
+    ok: true, prices: prices, codes: codes,
+    updated: now.toISOString(), refreshed: got, added: added, coded: coded, failed: failed,
+    source: 'naver'
+  };
+}
+
+function cacheGet_(k) {
+  try {
+    var v = CacheService.getScriptCache().get('sn:' + k);
+    return v ? JSON.parse(v) : {};
+  } catch (e) { return {}; }
+}
+function cachePut_(k, o) {
+  try { CacheService.getScriptCache().put('sn:' + k, JSON.stringify(o), PRICE_CACHE_SEC); } catch (e) {}
 }
 
 /* ------------------------------------------------------------------ 쓰기 */
@@ -374,10 +538,20 @@ function saveAll_(req) {
     writeDividends_(ss, divs);
     writeGurus_(ss, Array.isArray(data.gurus) ? data.gurus : []);
     writeCurve_(ss, Array.isArray(data.curve) ? data.curve : []);
-    writeSettings_(ss, settings, data.prices || {}, data.sectors || {});
+    writeSettings_(ss, settings, data.prices || {}, data.sectors || {}, data.customReasons || {});
     writePrices_(ss, data.prices || {});
 
-    return { ok: true, app: 'stocknote', version: BACKEND_VERSION, savedAt: new Date().toISOString() };
+    /* v1.2.0 — 저장 직후 시세도 같이 맞춰 둡니다. 실패해도 저장 결과는 그대로 돌려 줍니다. */
+    var fresh = null;
+    try { fresh = refreshPrices_(ss); } catch (e) { fresh = null; }
+    var out = { ok: true, app: 'stocknote', version: BACKEND_VERSION, savedAt: new Date().toISOString() };
+    if (fresh && fresh.ok) {
+      out.prices = fresh.prices;
+      out.codes = fresh.codes;
+      out.updated = fresh.updated;
+      out.refreshed = fresh.refreshed;
+    }
+    return out;
   } finally {
     lock.releaseLock();
   }
@@ -442,12 +616,13 @@ function writeCurve_(ss, list) {
   sh.getRange(2, 1, rows.length, HEADERS.curve.length).setValues(rows);
 }
 
-function writeSettings_(ss, s, prices, sectors) {
+function writeSettings_(ss, s, prices, sectors, customReasons) {
   var sh = ensureHeader_(tab_(ss, TABS.settings, HEADERS.settings), HEADERS.settings);
   clearBody_(sh, HEADERS.settings.length);
   var rows = SETTING_KEYS.map(function(pair){ return [pair[1], num_(s[pair[0]]), pair[2]]; });
   rows.push(['종목시세', JSON.stringify(prices || {}), '앱이 저장한 현재가(JSON)']);
   rows.push(['종목섹터', JSON.stringify(sectors || {}), '앱에서 직접 고른 종목별 섹터(JSON)']);
+  rows.push(['이유태그', JSON.stringify(customReasons || {}), '앱에서 +직접 입력으로 넣은 이유 태그(JSON)']);
   rows.push(['앱연결시각', new Date().toISOString(), '앱이 마지막으로 저장한 시각']);
   sh.getRange(2, 1, rows.length, 3).setValues(rows);
 }

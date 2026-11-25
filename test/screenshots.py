@@ -40,7 +40,7 @@ async def main():
         await pg.fill("#fQty", "20")
         await pg.fill("#fPrice", "210000")
         await pg.click('#pickReasons button[data-reason="실적·수주"]')
-        await pg.click('#pickReasons button[data-reason="저평가"]')
+        await pg.click('#pickReasons button[data-reason="저평가(PER·PBR)"]')
         await pg.click('#segMood button[data-mood="공포"]')
         await pg.click('#segHor button[data-hor="장기"]')
         await pg.fill("#fRule", "+15% 또는 수주 감소 시")

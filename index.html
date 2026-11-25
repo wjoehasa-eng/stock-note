@@ -1,6 +1,6 @@
 <!doctype html>
 <!--
-  주식노트 (stock-note) v1.0 — 토스 스타일 매매 복기 · 배당 · 위기 신호 · 고수 매칭
+  주식노트 (stock-note) v2.0 — 토스 스타일 매매 복기 · 배당 · 위기 신호 · 고수 매칭
   · 이 파일에는 실제 개인 정보가 하나도 들어 있지 않습니다.
     기본 화면의 숫자·종목·금액은 전부 누구나 아는 종목으로 만든 가상 예시입니다.
   · 저장 위치: ① 이 브라우저(localStorage) ② (선택) 본인 구글 시트(Apps Script)
@@ -12,6 +12,14 @@
   · v1.2: 홈 「보유 종목」 옆 '+ 기존 보유 추가' — 예전부터 들고 있던 종목을 수량·평단으로 바로 등록
     · 매매기록에 구분 '초기보유'로 저장 → 보유 수량·평단·집중도에는 합산, 예수금·이유 태그·분위기 통계는 건드리지 않음
     · '매수 총액을 순수 원금에도 더하기'를 켜면 진짜 수익이 왜곡되지 않음 (선택)
+  · v2.0: ① 산 이유·판 이유 태그를 따로 나누고(산 이유 10 · 판 이유 7 · 배당 3), 모달에서 '+ 직접 입력'으로
+          내 태그를 즉석에서 추가합니다. 예전 기록의 옛 태그(저평가·배당·리밸런싱·감정·불안 …)는 버리지 않고
+          그대로 보존해 필터·성적표에 함께 나옵니다.
+        ② "안 팔고 그대로 뒀다면?" — 매도마다 매도단가와 현재가를 비교해 잘 판 건/아쉬운 건을 뱃지로 보여 주고,
+          매매 기록 맨 위에 방어액 vs 기회비용을 막대로 비교하는 「내 매도 복기 요약」 카드를 둡니다.
+        ③ 종목명을 누르면 그 종목의 매수 이유·분위기·매도조건·메모 타임라인과 현재 수익, 고수 생각 매칭을 한 장에.
+        ④ 구글 시트가 연결돼 있으면 앱을 열 때 현재가를 백그라운드에서 한 번 자동으로 받아 옵니다
+          (Code.gs v1.2.0 — 네이버 금융에서 종목코드와 현재가를 자동으로 채웁니다).
 -->
 <html lang="ko" data-theme="light">
 <head>
@@ -519,13 +527,102 @@ select.inp{appearance:none;-webkit-appearance:none;font-weight:700;background-im
 .install-steps b{color:var(--ink);font-weight:700}
 .install-note{margin-top:14px;padding:12px 14px;border-radius:var(--r-sm);background:var(--card2);color:var(--sub);font-size:12.5px;line-height:1.6}
 
+/* ============================================================ v2.0 · 매도 복기 · 이유 태그 · 성적표 */
+.sellrev{position:relative;overflow:hidden}
+.sellrev:after{
+  content:"";position:absolute;right:-70px;top:-80px;width:210px;height:210px;border-radius:50%;
+  background:radial-gradient(circle at center,color-mix(in srgb,var(--green) 15%,transparent),transparent 68%);pointer-events:none
+}
+.rvhero{font-size:29px;font-weight:800;letter-spacing:-.045em;margin-top:9px;line-height:1.15;font-variant-numeric:tabular-nums}
+@media (max-width:560px){.rvhero{font-size:25px}}
+.rvsub{font-size:12.5px;color:var(--sub);margin-top:5px;line-height:1.55}
+.rvcmp{margin-top:15px;display:flex;flex-direction:column;gap:11px}
+.rvrow{display:flex;align-items:center;gap:10px;font-size:12.5px}
+.rvrow .rvk{flex:none;width:78px;font-weight:800;color:var(--ink2)}
+.rvrow .rvtrack{flex:1;height:12px;border-radius:99px;background:var(--card3);overflow:hidden}
+.rvrow .rvtrack i{display:block;height:100%;border-radius:99px;transition:width .55s cubic-bezier(.2,.8,.3,1)}
+.rvrow.good .rvtrack i{background:linear-gradient(90deg,color-mix(in srgb,var(--green) 55%,var(--card3)),var(--green))}
+.rvrow.bad .rvtrack i{background:linear-gradient(90deg,color-mix(in srgb,var(--orange) 55%,var(--card3)),var(--orange))}
+.rvrow .rvv{flex:none;min-width:100px;text-align:right;font-weight:800;font-variant-numeric:tabular-nums}
+.rvrow .rvv small{display:block;font-size:11px;font-weight:600;color:var(--sub);margin-top:1px}
+.rvlegend{display:flex;gap:14px;flex-wrap:wrap;margin-top:13px;font-size:11.5px;color:var(--sub)}
+.rvlegend span{display:inline-flex;align-items:center;gap:6px}
+.rvlegend i{width:9px;height:9px;border-radius:3px;display:block}
+.rvlist{margin-top:13px;padding-top:11px;border-top:1px solid var(--line2)}
+.rvitem{display:flex;align-items:center;gap:8px;padding:8px 0;font-size:12.5px;width:100%;text-align:left}
+.rvitem + .rvitem{border-top:1px solid var(--line2)}
+.rvitem .rn{font-weight:700}
+.rvitem .rd{font-size:11.5px;color:var(--sub);font-variant-numeric:tabular-nums}
+.rvitem .ra{margin-left:auto;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+.vbadge{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:800;padding:4px 9px;border-radius:9px;margin-top:9px;font-variant-numeric:tabular-nums;line-height:1.35}
+.vbadge.good{background:var(--green-soft);color:var(--green)}
+.vbadge.bad{background:var(--orange-soft);color:#B26A00}
+[data-theme="dark"] .vbadge.bad{color:var(--orange)}
+.vbadge.na{background:var(--card3);color:var(--sub);font-weight:700}
+.sblock + .sblock{margin-top:6px;padding-top:12px;border-top:1px solid var(--line2)}
+.sblock-h{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:800;color:var(--ink2);margin:2px 0 4px}
+.sblock-h .cnt{font-weight:600;color:var(--sub);font-size:11.5px}
+.srow{padding:10px 0}
+.srow + .srow{border-top:1px solid var(--line2)}
+.srow-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.srow-meta{font-size:11.5px;color:var(--sub);font-variant-numeric:tabular-nums}
+.srow-rate{margin-left:auto;font-size:13.5px;font-weight:800;font-variant-numeric:tabular-nums;text-align:right}
+.srow-rate small{display:block;font-size:11px;font-weight:600;color:var(--sub);margin-top:1px}
+.gtrack{position:relative;height:8px;border-radius:99px;background:var(--card3);overflow:hidden;flex:1}
+.gtrack .gmid{position:absolute;left:50%;top:0;bottom:0;width:1.5px;background:var(--line);opacity:.9}
+.gtrack i{position:absolute;top:0;height:100%;border-radius:99px;transition:width .5s cubic-bezier(.2,.8,.3,1)}
+.gtrack i.up{left:50%;background:var(--red)}
+.gtrack i.down{right:50%;background:var(--blue)}
+.wtrack{position:relative;height:5px;border-radius:99px;background:var(--card3);overflow:hidden;flex:1}
+.wtrack i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,color-mix(in srgb,var(--green) 45%,var(--card3)),var(--green))}
+.gline{display:flex;align-items:center;gap:9px;margin-top:7px}
+.gline .gl{flex:none;width:32px;text-align:right;font-size:11px;font-weight:700;color:var(--sub);letter-spacing:-.02em}
+.moodline{display:flex;align-items:center;gap:8px;margin-top:8px}
+.moodline .mk{font-size:11px;color:var(--sub);font-weight:700;flex:none}
+.moodline .mtrack{flex:1;height:6px;border-radius:99px;background:var(--card3);overflow:hidden}
+.moodline .mtrack i{display:block;height:100%;border-radius:99px}
+.reason-add{margin-top:9px}
+.reason-addform{display:flex;gap:6px;margin-top:8px}
+.reason-addform .inp{height:44px;font-size:14.5px}
+.reason-addform .btn{flex:none}
+.pickchips button.legacy{border-style:dashed;border-color:var(--line)}
+.pickchips button.legacy.on{color:var(--ink2);background:var(--card3);border-color:var(--sub);border-style:dashed}
+.tag.legacy{background:transparent;border:1px dashed var(--line);color:var(--sub);font-weight:600}
+.nm-btn{font-size:14.5px;font-weight:700;color:var(--ink);text-align:left;display:inline-flex;align-items:center;gap:5px;letter-spacing:-.02em}
+.nm-btn:after{content:"›";font-size:16px;color:var(--sub);font-weight:700;line-height:1;margin-top:-1px}
+.nm-btn:active{opacity:.6}
+.tc-name-btn{font-size:15px;font-weight:800;letter-spacing:-.02em;color:var(--ink);display:inline-flex;align-items:center;gap:4px;text-align:left}
+.tc-name-btn:after{content:"›";font-size:15px;color:var(--sub);font-weight:700;line-height:1}
+.tc-name-btn:active{opacity:.6}
+.revsum{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.revbox{background:var(--card2);border-radius:14px;padding:12px}
+.revbox .rk{font-size:11.5px;color:var(--sub);font-weight:700}
+.revbox .rv{font-size:17px;font-weight:800;margin-top:3px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.revbox .rs{font-size:11px;color:var(--sub);margin-top:3px;line-height:1.45}
+.revnote{margin-top:12px;padding:11px 12px;border-radius:12px;background:var(--blue-soft);color:var(--blue-ink);font-size:12.5px;line-height:1.55;font-weight:600}
+.tl{position:relative;padding-left:18px;margin-top:4px}
+.tl:before{content:"";position:absolute;left:4px;top:8px;bottom:8px;width:2px;background:var(--line2);border-radius:2px}
+.tli{position:relative;padding:10px 0}
+.tli:before{content:"";position:absolute;left:-18px;top:15px;width:8px;height:8px;border-radius:50%;background:var(--card);border:2px solid var(--sub)}
+.tli.buy:before{border-color:var(--red)}
+.tli.sell:before{border-color:var(--blue-ink)}
+.tli.div:before{border-color:var(--green)}
+.tli.init:before{border-color:var(--sub)}
+.tli-top{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.tli-amt{font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.tli-side{font-size:11px;font-weight:800;padding:2px 7px;border-radius:7px;background:var(--card3);color:var(--ink2)}
+.tli-date{margin-left:auto;font-size:11.5px;color:var(--sub);font-variant-numeric:tabular-nums}
+.tli-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.tli-note{font-size:12px;color:var(--ink2);margin-top:6px;line-height:1.55}
+.tli-note b{color:var(--ink)}
+
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
 <body>
 <header class="topbar" id="topbar">
   <div class="wrap tbinner">
-    <div class="brand"><span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16.2 9 11l3.4 3.2L20 6.4"/><path d="M15.6 6.4H20v4.4"/></svg></span><span>주식노트</span></div>
+    <div class="brand"><span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16.2 9 11l3.4 3.2L20 6.4"/><path d="M15.6 6.4H20v4.4"/></svg></span><span>주식노트</span><span class="ver">v2.0</span></div>
     <nav class="pilltabs" id="pillTabs" aria-label="화면 이동">
       <button data-view="home" class="on">홈</button>
       <button data-view="trades">매매 기록</button>
@@ -617,7 +714,7 @@ select.inp{appearance:none;-webkit-appearance:none;font-weight:700;background-im
         <div class="cardhead">
           <h2>보유 종목</h2>
           <div class="chright">
-            <span class="hint hold-hint">현재가 배지를 눌러 수정</span>
+            <span class="hint hold-hint">종목명 누르면 복기 · 현재가 배지로 수정</span>
             <button class="btn sm" id="btnAddHolding">+ 기존 보유 추가</button>
           </div>
         </div>
@@ -634,14 +731,24 @@ select.inp{appearance:none;-webkit-appearance:none;font-weight:700;background-im
         <button class="btn primary" id="btnAddTrade">+ 매매 기록하기</button>
       </div>
 
-      <div class="card">
-        <div class="cardhead"><h2>이유 태그별 성과</h2><span class="hint">매도로 이어진 건만 집계</span></div>
+      <div class="card sellrev" id="sellReviewCard">
+        <div class="cardhead"><h2>내 매도 복기 요약</h2><span class="hint" id="sellReviewHint">안 팔고 그대로 뒀다면?</span></div>
+        <div id="sellReview"></div>
+      </div>
+
+      <div class="card" id="tagStatsCard">
+        <div class="cardhead"><h2>산 이유별 성적표</h2><span class="hint">매도로 이어진 건만 집계</span></div>
         <div id="tagStats"></div>
+      </div>
+
+      <div class="card" id="sellReasonCard">
+        <div class="cardhead"><h2>판 이유는 어땠나</h2><span class="hint">그 뒤 주가와 비교</span></div>
+        <div id="sellReasonStats"></div>
       </div>
 
       <div class="card">
         <div class="cardhead"><h2>시장 분위기별 매수</h2><span class="hint">그때의 감정도 성과입니다</span></div>
-        <div class="tiles" id="moodTiles"></div>
+        <div id="moodStats"></div>
       </div>
 
       <div class="filters">
@@ -760,8 +867,34 @@ select.inp{appearance:none;-webkit-appearance:none;font-weight:700;background-im
 
 /* ========================================================== 상수 */
 var LS = { data:'stocknote.data.v1', url:'stocknote.url', theme:'stocknote.theme' };
-var APP_VERSION = '1.2.0';
-var REASONS = ['실적·수주','배당','저평가','차트·수급','물타기','리밸런싱','감정·불안'];
+var APP_VERSION = '2.0.0';
+
+/* v2.0 — 산 이유와 판 이유를 나눕니다. 옛 태그는 'LEGACY'로 남겨 지우지 않고 그대로 보여 줍니다. */
+var BUY_REASONS = [
+  '저평가(PER·PBR)','실적·수주','배당 매력','업황 바닥','고수 의견 참고',
+  '계획 분할매수','물타기','차트·수급','뉴스·테마 추격','불안·조급(FOMO)'
+];
+var SELL_REASONS = [
+  '목표수익 도달','실적·배당 훼손','더 좋은 종목 교체','리밸런싱·현금화',
+  '원칙 손절','하락 공포·불안','단기 차익 유혹'
+];
+var DIV_REASONS = ['정기 배당','특별·분기 배당','배당 매력'];
+var LEGACY_REASONS = ['실적·수주','배당','저평가','차트·수급','물타기','리밸런싱','감정·불안'];
+/* 필터·성적표에서 쓰는 전체 목록 (중복 제거) */
+var REASONS = BUY_REASONS.concat(SELL_REASONS, DIV_REASONS, LEGACY_REASONS)
+  .filter(function(v, i, a){ return a.indexOf(v) === i; });
+var REASON_SIDE = {};
+BUY_REASONS.forEach(function(r){ REASON_SIDE[r] = 'buy'; });
+SELL_REASONS.forEach(function(r){ REASON_SIDE[r] = 'sell'; });
+DIV_REASONS.forEach(function(r){ REASON_SIDE[r] = 'div'; });
+function reasonPreset(side){ return side === 'sell' ? SELL_REASONS : (side === 'div' ? DIV_REASONS : BUY_REASONS); }
+function reasonSideOf(tag){
+  var s = REASON_SIDE[tag];
+  if (s) return s;
+  return LEGACY_REASONS.indexOf(tag) >= 0 ? 'legacy' : 'custom';
+}
+var REASON_SIDE_LABEL = { buy:'산 이유', sell:'판 이유', div:'배당', legacy:'옛 태그', custom:'내 태그' };
+
 var MOODS = ['공포','보통','과열'];
 var HORIZONS = ['단기','중기','장기'];
 var MOOD_CLASS = { '공포':'fear', '보통':'normal', '과열':'hot' };
@@ -850,22 +983,24 @@ function demoData(){
     settings: { principal:12000000, loanBase:0, maintenanceRatio:140, concWarn:30, concDanger:45 },
     prices: { '삼성전자':76500, 'SK텔레콤':56200, '맥쿼리인프라':12450, 'KB금융':88500 },
     sectors: {},
+    customReasons: { buy:[], sell:[], div:[] },
+    priceAt: '',
     trades: [
-      T('t01','2026-05-12','삼성전자','buy',20,68000,'cash',['저평가','차트·수급'],'보통','중기','+12% 또는 실적 발표 전','반도체 업황 바닥이라는 판단'),
-      T('t02','2026-06-02','SK텔레콤','buy',30,52000,'cash',['배당','저평가'],'공포','장기','배당 삭감 공시가 나오면','AI 요금 인상 기대'),
-      T('t03','2026-06-18','맥쿼리인프라','buy',100,12300,'loan',['배당'],'보통','장기','분기 배당 유지 확인','담보대출로 매수 — 이자보다 배당이 큰지 매달 확인'),
-      T('t04','2026-07-08','KB금융','buy',20,78000,'loan',['배당','저평가'],'보통','장기','PBR 0.4배 이탈 시 추가','금리 고점 통과 시 은행 마진 개선'),
+      T('t01','2026-05-12','삼성전자','buy',20,68000,'cash',['저평가(PER·PBR)','차트·수급'],'보통','중기','+12% 또는 실적 발표 전','반도체 업황 바닥이라는 판단'),
+      T('t02','2026-06-02','SK텔레콤','buy',30,52000,'cash',['배당','저평가'],'공포','장기','배당 삭감 공시가 나오면','AI 요금 인상 기대 — 옛 태그로 남은 기록'),
+      T('t03','2026-06-18','맥쿼리인프라','buy',100,12300,'loan',['배당 매력'],'보통','장기','분기 배당 유지 확인','담보대출로 매수 — 이자보다 배당이 큰지 매달 확인'),
+      T('t04','2026-07-08','KB금융','buy',20,78000,'loan',['배당 매력','저평가'],'보통','장기','PBR 0.4배 이탈 시 추가','금리 고점 통과 시 은행 마진 개선'),
       T('t05','2026-08-03','삼성전자','buy',10,71500,'cash',['물타기'],'공포','중기','+10% 도달하면 절반 정리','원칙 위반이지만 수량을 작게'),
-      T('t06','2026-08-26','SK텔레콤','div',30,500,'cash',['배당'],'보통','장기','','분기 배당금 입금'),
-      T('t07','2026-09-09','맥쿼리인프라','sell',30,12900,'cash',['리밸런싱'],'과열','단기','','비중 줄이기'),
+      T('t06','2026-08-26','SK텔레콤','div',30,500,'cash',['정기 배당'],'보통','장기','','분기 배당금 입금'),
+      T('t07','2026-09-09','맥쿼리인프라','sell',30,12900,'cash',['리밸런싱'],'과열','단기','','비중 줄이기 — 옛 태그로 남은 매도 기록'),
       T('t08','2026-09-23','KB금융','buy',10,82000,'cash',['실적·수주'],'보통','장기','','실적 발표 후 추세 확인'),
-      T('t09','2026-10-13','삼성전자','sell',10,79000,'cash',['차트·수급'],'과열','단기','','단기 목표 도달'),
-      T('t10','2026-10-28','맥쿼리인프라','div',70,220,'cash',['배당'],'보통','장기','','분기 배당금 입금'),
-      T('t11','2026-11-06','SK텔레콤','buy',10,55000,'cash',['배당'],'공포','장기','','조정 구간 추가 매수'),
-      T('t12','2026-11-13','KB금융','div',30,850,'cash',['배당'],'보통','장기','','분기 배당금 입금'),
-      T('t13','2026-11-19','삼성전자','buy',15,74000,'cash',['감정·불안'],'공포','중기','생각 없이 눌렀다면 다음 날 정리','뉴스만 보고 따라 산 기록 — 복기용'),
-      T('t14','2026-10-06','SK텔레콤','sell',10,54500,'cash',['배당','저평가'],'보통','장기','','배당 받은 뒤 일부 차익 실현'),
-      T('t15','2026-11-20','KB금융','sell',10,86000,'cash',['배당','저평가'],'과열','장기','','목표가 근처라 절반 정리')
+      T('t09','2026-10-13','삼성전자','sell',10,79000,'cash',['목표수익 도달'],'과열','단기','','단기 목표 도달'),
+      T('t10','2026-10-28','맥쿼리인프라','div',70,220,'cash',['정기 배당'],'보통','장기','','분기 배당금 입금'),
+      T('t11','2026-11-06','SK텔레콤','buy',10,55000,'cash',['배당 매력'],'공포','장기','','조정 구간 추가 매수'),
+      T('t12','2026-11-13','KB금융','div',30,850,'cash',['정기 배당'],'보통','장기','','분기 배당금 입금'),
+      T('t13','2026-11-19','삼성전자','buy',15,74000,'cash',['불안·조급(FOMO)'],'공포','중기','생각 없이 눌렀다면 다음 날 정리','뉴스만 보고 따라 산 기록 — 복기용'),
+      T('t14','2026-10-06','SK텔레콤','sell',10,54500,'cash',['목표수익 도달'],'보통','장기','','배당 받은 뒤 일부 차익 실현'),
+      T('t15','2026-11-20','KB금융','sell',10,86000,'cash',['목표수익 도달','리밸런싱·현금화'],'과열','장기','','목표가 근처라 절반 정리')
     ],
     dividends: [
       { id:'d01', name:'삼성전자', month:1, expectedPer:361, confirmedPer:361, qty:35, exDate:'2025-12-31', payDate:'2026-01-20', note:'' },
@@ -922,7 +1057,8 @@ function demoData(){
 function emptyData(){
   return {
     settings: { principal:0, loanBase:0, maintenanceRatio:140, concWarn:30, concDanger:45 },
-    prices: {}, sectors: {}, trades: [], dividends: [], gurus: [], curve: []
+    prices: {}, sectors: {}, customReasons: { buy:[], sell:[], div:[] }, priceAt: '',
+    trades: [], dividends: [], gurus: [], curve: []
   };
 }
 
@@ -939,6 +1075,26 @@ var state = {
   sync: 'idle'
 };
 
+function cleanTags(list){
+  if (!Array.isArray(list)) return [];
+  var out = [];
+  list.forEach(function(r){
+    if (r == null) return;
+    var s = String(r).replace(/[,\n\r]/g, ' ').trim().slice(0, 24);
+    if (!s) return;
+    if (out.indexOf(s) < 0) out.push(s);
+  });
+  return out.slice(0, 12);
+}
+function cleanTagPool(obj){
+  obj = obj || {};
+  return {
+    buy: cleanTags(obj.buy),
+    sell: cleanTags(obj.sell),
+    div: cleanTags(obj.div)
+  };
+}
+
 function normalizeData(d){
   var base = emptyData();
   d = d || {};
@@ -946,6 +1102,8 @@ function normalizeData(d){
     settings: Object.assign({}, base.settings, d.settings || {}),
     prices: Object.assign({}, d.prices || {}),
     sectors: Object.assign({}, d.sectors || {}),
+    customReasons: cleanTagPool(d.customReasons),
+    priceAt: d.priceAt || '',
     trades: Array.isArray(d.trades) ? d.trades : [],
     dividends: Array.isArray(d.dividends) ? d.dividends : [],
     gurus: Array.isArray(d.gurus) ? d.gurus : [],
@@ -971,7 +1129,9 @@ function normalizeData(d){
       qty: num(t.qty), price: num(t.price),
       prin: prin,
       funding: t.funding === 'loan' ? 'loan' : 'cash',
-      reasons: (side === 'init') ? [] : (Array.isArray(t.reasons) ? t.reasons.filter(function(r){ return REASONS.indexOf(r) >= 0; }) : []),
+      /* v2.0: 옛 태그(저평가·배당·리밸런싱·감정·불안 …)와 직접 입력한 태그를
+         걸러내지 않고 그대로 보존합니다. 필터·성적표가 그 태그로도 동작해야 합니다. */
+      reasons: (side === 'init') ? [] : cleanTags(t.reasons),
       mood: (side === 'init') ? '' : (MOODS.indexOf(t.mood) >= 0 ? t.mood : '보통'),
       horizon: HORIZONS.indexOf(t.horizon) >= 0 ? t.horizon : '중기',
       rule: t.rule || '', memo: t.memo || ''
@@ -1108,11 +1268,26 @@ function compute(){
   var top = holdings[0] || null;
   var conc = holdingsValue > 0 && top ? (top.value / holdingsValue) * 100 : 0;
 
+  /* 종목별 현재가 — 매도 복기(안 팔고 그대로 뒀다면?)의 기준값.
+     d.prices(직접 입력·자동 시세) > 마지막 거래가 > 평단 순으로 쓰고, 뒤의 둘은 '추정'으로 표시합니다. */
+  var priceMap = {}, priceEst = {};
+  Object.keys(d.prices || {}).forEach(function(n){
+    var v = num(d.prices[n]);
+    if (v > 0){ priceMap[n] = v; priceEst[n] = false; }
+  });
+  Object.keys(lastPrice).forEach(function(n){
+    if (priceMap[n] == null && lastPrice[n] > 0){ priceMap[n] = lastPrice[n]; priceEst[n] = true; }
+  });
+  holdings.forEach(function(h){
+    if (priceMap[h.name] == null && h.price > 0){ priceMap[h.name] = h.price; priceEst[h.name] = true; }
+  });
+
   return {
     principal: principal, cash: cash, loan: loan, holdings: holdings, holdingsValue: holdingsValue,
     assets: assets, profit: profit, rate: rate, realized: realized, divCash: divCash,
     tagStat: tagStat, moodStat: moodStat, moodBuys: moodBuys, curve: curve,
     peak: peak, mdd: mdd, top: top, conc: conc, realizedRows: realizedRows,
+    priceMap: priceMap, priceEst: priceEst,
     tradeCount: d.trades.length
   };
 }
@@ -1229,6 +1404,111 @@ function computeDividends(){
     monthsWith: monthsWith, avgPerMonth: monthTotal / 12, rows: rows
   };
 }
+/* ========================================================== 매도 복기 · 종목 복기 (v2.0) */
+
+/* 매도 기록마다: 매도단가 vs 현재가 → 손실 방어 / 기회비용 */
+function computeSellReview(c){
+  c = c || compute();
+  var rows = [];
+  state.data.trades.forEach(function(t){
+    if (t.side !== 'sell') return;
+    var sellPx = num(t.price), qty = num(t.qty);
+    var cur = c.priceMap[t.name];
+    var row = {
+      id:t.id, date:t.date, name:t.name, qty:qty, sellPx:sellPx, amount:qty*sellPx,
+      reasons:(t.reasons || []).slice(), cur:(cur > 0 ? cur : null),
+      est: !!c.priceEst[t.name], diff:0, pct:0, good:null, amt:0
+    };
+    if (row.cur != null && sellPx > 0){
+      row.diff = (row.cur - sellPx) * qty;
+      row.pct = (row.cur - sellPx) / sellPx * 100;
+      row.good = row.diff <= 0;
+      row.amt = Math.abs(row.diff);
+    }
+    rows.push(row);
+  });
+  rows.sort(function(a,b){ return a.date < b.date ? 1 : (a.date > b.date ? -1 : 0); });
+  var judged = rows.filter(function(r){ return r.cur != null; });
+  var good = judged.filter(function(r){ return r.good; });
+  var bad = judged.filter(function(r){ return !r.good; });
+  var defended = good.reduce(function(a,r){ return a + r.amt; }, 0);
+  var missed = bad.reduce(function(a,r){ return a + r.amt; }, 0);
+  return {
+    rows:rows, judged:judged, good:good, bad:bad,
+    defended:defended, missed:missed, net:defended - missed,
+    total:rows.length, unknown:rows.length - judged.length
+  };
+}
+
+/* 판 이유별 — 그 매도가 결과적으로 옳았는지 */
+function computeSellReasonStats(rev){
+  var by = {};
+  rev.judged.forEach(function(r){
+    var tags = r.reasons.length ? r.reasons : ['(태그 없음)'];
+    tags.forEach(function(tag){
+      if (!by[tag]) by[tag] = { n:0, good:0, defended:0, missed:0 };
+      var b = by[tag];
+      b.n += 1;
+      if (r.good){ b.good += 1; b.defended += r.amt; }
+      else b.missed += r.amt;
+    });
+  });
+  return Object.keys(by).map(function(k){
+    var b = by[k];
+    b.tag = k; b.net = b.defended - b.missed; b.win = b.n ? (b.good / b.n * 100) : 0;
+    return b;
+  }).sort(function(a,b){ return Math.abs(b.net) - Math.abs(a.net) || b.n - a.n; });
+}
+
+/* 한 종목의 처음부터 지금까지 */
+function computeNameStats(name, c){
+  c = c || compute();
+  var tr = state.data.trades.filter(function(t){ return t.name === name; })
+    .slice().sort(function(a,b){ return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0); });
+  var inAmt = 0, sellAmt = 0, divAmt = 0, buyQty = 0, sellQty = 0, buyCount = 0, sellCount = 0;
+  tr.forEach(function(t){
+    var amt = num(t.qty) * num(t.price);
+    if (t.side === 'buy' || t.side === 'init'){
+      inAmt += amt; buyQty += num(t.qty);
+      if (t.side === 'buy') buyCount += 1;
+    } else if (t.side === 'sell'){
+      sellAmt += amt; sellQty += num(t.qty); sellCount += 1;
+    } else {
+      divAmt += amt;
+    }
+  });
+  var h = c.holdings.filter(function(x){ return x.name === name; })[0] || null;
+  var px = c.priceMap[name] || 0;
+  var heldValue = h ? h.qty * px : 0;
+  var pnl = heldValue + sellAmt + divAmt - inAmt;
+  var realized = c.realizedRows.filter(function(r){ return r.name === name; })
+    .reduce(function(a,r){ return a + r.pnl; }, 0);
+  return {
+    name:name, sector:sectorOf(name), trades:tr,
+    inAmt:inAmt, sellAmt:sellAmt, divAmt:divAmt, buyQty:buyQty, sellQty:sellQty,
+    buyCount:buyCount, sellCount:sellCount,
+    holding:h, price:px, priceEst: !!c.priceEst[name],
+    heldValue:heldValue, pnl:pnl, realized:realized,
+    rate: inAmt > 0 ? (pnl / inAmt) * 100 : 0
+  };
+}
+
+/* 그 종목에 걸리는 고수 카드 */
+function stockReviewGurus(name){
+  var tags = {};
+  state.data.trades.forEach(function(t){
+    if (t.name !== name) return;
+    (t.reasons || []).forEach(function(r){ tags[r] = 1; });
+  });
+  tags[sectorOf(name)] = 1;
+  var hits = [];
+  state.data.gurus.forEach(function(g){
+    var h = (g.tags || []).filter(function(x){ return tags[x]; });
+    if (h.length) hits.push({ g:g, hits:h });
+  });
+  return hits.slice(0, 2);
+}
+
 /* ========================================================== DOM */
 function $(sel, root){ return (root || document).querySelector(sel); }
 function $$(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
@@ -1402,7 +1682,8 @@ function renderHoldings(c){
   el.innerHTML = c.holdings.map(function(h){
     var rt = h.avg > 0 ? ((h.price - h.avg) / h.avg) * 100 : 0;
     return '<div class="hold">' +
-      '<div><div class="nm">' + esc(h.name) + '<span class="sector">' + esc(h.sector) + '</span></div>' +
+      '<div><div class="nm"><button class="nm-btn" data-review="' + esc(h.name) + '" title="종목 복기">' + esc(h.name) + '</button>' +
+        '<span class="sector">' + esc(h.sector) + '</span></div>' +
         '<div class="sm">' + fmt(h.qty) + '주 · 평단 ' + fmt(h.avg) + '원</div></div>' +
       '<div class="rt"><div class="pv">' + won(h.value) + '</div>' +
         '<button class="px" data-price="' + esc(h.name) + '">현재가 ' + fmt(h.price) + '원 · ' +
@@ -1420,55 +1701,30 @@ function renderTrades(c){
   $('#tradeCount').textContent = '모두 ' + d.trades.length + '건 · 매수 ' + bs.buy + ' · 매도 ' + bs.sell + ' · 배당 ' + bs.div +
     (bs.init ? ' · 기존 보유 ' + bs.init : '') + ' · 카드를 누르면 수정';
 
-  /* 이유 태그별 — 매수는 바로, 성과는 매도로 이어진 건만 */
-  var tagBuys = {};
-  d.trades.forEach(function(t){
-    if (t.side !== 'buy') return;
-    (t.reasons || []).forEach(function(r){ tagBuys[r] = (tagBuys[r] || 0) + 1; });
-  });
-  var keys = Object.keys(tagBuys).concat(Object.keys(c.tagStat)).filter(function(v, i, a){ return a.indexOf(v) === i; });
-  keys.sort(function(a, b){
-    var sa = ((c.tagStat[a] ? c.tagStat[a].n : 0) * 10) + (tagBuys[a] || 0);
-    var sb = ((c.tagStat[b] ? c.tagStat[b].n : 0) * 10) + (tagBuys[b] || 0);
-    return sb - sa;
-  });
-  var tagEl = $('#tagStats');
-  if (!keys.length){
-    tagEl.innerHTML = '<div class="calc-note" style="margin:0">매매를 기록하면 산 이유별 매수 건수와, 매도로 이어진 건의 승률·평균 수익률이 여기에 나옵니다.</div>';
-  } else {
-    tagEl.innerHTML = keys.slice(0, 6).map(function(k){
-      var st = c.tagStat[k] || { n:0, wins:0, pnl:0, cost:0 };
-      var win = st.n ? (st.wins / st.n * 100) : 0;
-      var ret = st.cost ? (st.pnl / st.cost * 100) : 0;
-      var right = st.n
-        ? '<span class="rate ' + (ret > 0 ? 'up' : (ret < 0 ? 'down' : '')) + '">' + signedPct(ret) +
-            '<small>승률 ' + win.toFixed(0) + '%</small></span>'
-        : '<span class="rate" style="color:var(--sub);font-weight:700">아직 매도 없음</span>';
-      return '<div class="tagrow">' +
-        '<span class="tag">' + esc(k) + '</span>' +
-        '<span style="font-size:12px;color:var(--sub)">매수 ' + (tagBuys[k] || 0) + ' · 매도 ' + st.n + '</span>' +
-        right +
-      '</div>';
-    }).join('');
-  }
+  /* 매도 복기 요약 ("안 팔고 그대로 뒀다면?") */
+  renderSellReview(c);
+  /* 산 이유별 · 판 이유별 · 분위기별 성적표 */
+  renderTagStats(c);
+  renderSellReasonStats();
+  renderMoodStats(c);
 
-  /* 분위기 타일 */
-  $('#moodTiles').innerHTML = MOODS.map(function(m){
-    var n = c.moodBuys[m] || 0;
-    var st = c.moodStat[m];
-    var ret = st && st.cost ? (st.pnl / st.cost * 100) : null;
-    var win = st && st.n ? Math.round(st.wins / st.n * 100) : null;
-    return '<div class="tile"><div class="tk">' + m + '</div>' +
-      '<div class="tv num">' + n + '회</div>' +
-      '<div class="ts">' + (ret == null ? '매도 결과 없음' : '평균 ' + signedPct(ret) + ' · 승률 ' + win + '%') + '</div></div>';
-  }).join('');
-
-  /* 태그 필터 옵션 */
+  /* 태그 필터 옵션 — 옛 태그·직접 입력 태그까지 모두 나옵니다 */
   var sel = $('#tagFilter');
   var used = {};
-  d.trades.forEach(function(t){ t.reasons.forEach(function(r){ used[r] = 1; }); });
+  d.trades.forEach(function(t){ (t.reasons || []).forEach(function(r){ used[r] = 1; }); });
+  var groups = [['buy','산 이유'], ['sell','판 이유'], ['div','배당'], ['legacy','옛 태그'], ['custom','내 태그']];
   var opts = ['<option value="all">이유 태그 · 전체</option>'];
-  REASONS.forEach(function(r){ if (used[r]) opts.push('<option value="' + esc(r) + '"' + (state.filterTag === r ? ' selected' : '') + '>' + esc(r) + '</option>'); });
+  groups.forEach(function(gr){
+    var tagsIn = Object.keys(used).filter(function(r){ return reasonSideOf(r) === gr[0]; });
+    if (!tagsIn.length) return;
+    tagsIn = REASONS.filter(function(r){ return tagsIn.indexOf(r) >= 0; })
+      .concat(tagsIn.filter(function(r){ return REASONS.indexOf(r) < 0; }).sort());
+    opts.push('<optgroup label="' + gr[1] + '">');
+    tagsIn.forEach(function(r){
+      opts.push('<option value="' + esc(r) + '"' + (state.filterTag === r ? ' selected' : '') + '>' + esc(r) + '</option>');
+    });
+    opts.push('</optgroup>');
+  });
   sel.innerHTML = opts.join('');
   sel.value = state.filterTag;
   if (sel.value !== state.filterTag) { state.filterTag = 'all'; sel.value = 'all'; }
@@ -1488,12 +1744,15 @@ function renderTrades(c){
     tl.innerHTML = '<div class="empty">' + (d.trades.length ? '이 필터에 맞는 기록이 없습니다.' : '아직 매매 기록이 없습니다.<br>10초면 한 건을 남길 수 있어요.') + '</div>';
     return;
   }
+  var revById = {};
+  (state._rev ? state._rev.rows : []).forEach(function(r){ revById[r.id] = r; });
   tl.innerHTML = list.map(function(t){
     var amt = num(t.qty) * num(t.price);
+    var nameBtn = '<button class="tc-name-btn" data-review="' + esc(t.name) + '" title="종목 복기">' + esc(t.name) + '</button>';
     if (t.side === 'init'){
       return '<div class="tcard" data-id="' + esc(t.id) + '">' +
         '<div class="tc-top"><span class="side init">기존 보유</span>' +
-          '<span class="tc-name">' + esc(t.name) + '</span>' +
+          nameBtn +
           '<span class="tc-date num">' + dateLabel(t.date) + '</span></div>' +
         '<div class="tc-mid"><span class="tc-amt num">' + won(amt) + '</span>' +
           '<span class="tc-qty num">' + fmt(t.qty) + '주 × 평단 ' + fmt(t.price) + '원</span></div>' +
@@ -1504,17 +1763,206 @@ function renderTrades(c){
     var realRow = t.side === 'sell' ? c.realizedRows.filter(function(r){ return r.id === t.id; }).reduce(function(a,r){ return a + r.pnl; }, 0) : null;
     return '<div class="tcard" data-id="' + esc(t.id) + '">' +
       '<div class="tc-top"><span class="side ' + t.side + '">' + SIDE_LABEL[t.side] + '</span>' +
-        '<span class="tc-name">' + esc(t.name) + '</span>' +
+        nameBtn +
         '<span class="tc-date num">' + dateLabel(t.date) + '</span></div>' +
       '<div class="tc-mid"><span class="tc-amt num">' + won(amt) + '</span>' +
         '<span class="tc-qty num">' + fmt(t.qty) + '주 × ' + fmt(t.price) + '원' +
           (t.side === 'buy' ? (t.funding === 'loan' ? ' · 담보대출' : ' · 현금') : '') + '</span>' +
         (realRow != null ? '<span class="tc-qty num ' + (realRow > 0 ? 'up' : (realRow < 0 ? 'down' : '')) + '">실현 ' + signedWon(realRow) + '</span>' : '') + '</div>' +
-      (t.reasons.length ? '<div class="tc-tags">' + t.reasons.map(function(r){ return '<span class="tag mini">' + esc(r) + '</span>'; }).join('') + '</div>' : '') +
+      (t.reasons.length ? '<div class="tc-tags">' + t.reasons.map(function(r){ return '<span class="tag mini' + (reasonSideOf(r) === 'legacy' ? ' legacy' : '') + '">' + esc(r) + '</span>'; }).join('') + '</div>' : '') +
+      (t.side === 'sell' ? sellBadgeHTML(revById[t.id] || { cur:null }) : '') +
       '<div class="tc-foot"><span class="mood ' + (MOOD_CLASS[t.mood] || '') + '">' + esc(t.mood) + '</span><span>' + esc(t.horizon) + '</span>' +
         (t.rule ? '<span class="rule">· ' + esc(t.rule) + '</span>' : '') + '</div>' +
     '</div>';
   }).join('');
+}
+
+/* ---- 매도 복기 뱃지 */
+function sellBadgeHTML(r){
+  if (!r || r.cur == null){
+    return '<div class="vbadge na">현재가를 넣으면 안 팔았을 때와 비교합니다</div>';
+  }
+  var est = r.est ? ' · 추정' : '';
+  if (r.good){
+    return '<div class="vbadge good">잘 팔았다! +' + fmt(r.amt) + '원 손실 방어 (' + signedPct(r.pct) + ')' +
+      '<span style="font-weight:600;opacity:.75">현재가 ' + fmt(r.cur) + '원' + est + '</span></div>';
+  }
+  return '<div class="vbadge bad">안 팔았으면 +' + fmt(r.amt) + '원 더 (' + signedPct(r.pct) + ')' +
+    '<span style="font-weight:600;opacity:.75">현재가 ' + fmt(r.cur) + '원' + est + '</span></div>';
+}
+
+/* ---- 「내 매도 복기 요약」 카드 */
+function renderSellReview(c){
+  var rev = computeSellReview(c);
+  state._rev = rev;
+  var el = $('#sellReview');
+  var hint = $('#sellReviewHint');
+  if (!rev.total){
+    if (hint) hint.textContent = '매도 기록이 없습니다';
+    el.innerHTML = '<div class="calc-note" style="margin:0">매도를 기록하면, 그때 팔지 않고 그대로 뒀다면 어땠는지를 여기서 매번 다시 봅니다.</div>';
+    return;
+  }
+  if (hint) hint.textContent = '매도 ' + rev.total + '건 · 현재가 기준';
+  var maxV = Math.max(rev.defended, rev.missed, 1);
+  var wGood = Math.round(rev.defended / maxV * 100);
+  var wBad = Math.round(rev.missed / maxV * 100);
+  var netPos = rev.net >= 0;
+  var top = rev.judged.slice().sort(function(a,b){ return b.amt - a.amt; }).slice(0, 3);
+
+  var html =
+    '<div class="label">지금까지 내 매도는</div>' +
+    '<div class="rvhero ' + (netPos ? 'up' : 'down') + '">' + signedWon(rev.net) + '</div>' +
+    '<div class="rvsub">' +
+      (netPos
+        ? '안 팔았을 때보다 이만큼 유리했습니다. 잘 판 매도 ' + rev.good.length + '건이 아쉬운 ' + rev.bad.length + '건을 덮었습니다.'
+        : '그대로 보유했다면 이만큼 더 벌었습니다. 잘 판 ' + rev.good.length + '건 · 아쉬운 ' + rev.bad.length + '건.') +
+      (rev.unknown ? ' (현재가가 없어 비교하지 못한 ' + rev.unknown + '건은 빠졌습니다.)' : '') +
+    '</div>' +
+    '<div class="rvcmp">' +
+      '<div class="rvrow good"><span class="rvk">잘 판 매도</span>' +
+        '<div class="rvtrack"><i style="width:' + wGood + '%"></i></div>' +
+        '<span class="rvv" style="color:var(--green)">+' + fmt(rev.defended) + '원<small>' + rev.good.length + '건 · 손실 방어</small></span></div>' +
+      '<div class="rvrow bad"><span class="rvk">아쉬운 매도</span>' +
+        '<div class="rvtrack"><i style="width:' + wBad + '%"></i></div>' +
+        '<span class="rvv" style="color:var(--orange)">−' + fmt(rev.missed) + '원<small>' + rev.bad.length + '건 · 기회비용</small></span></div>' +
+    '</div>' +
+    '<div class="rvlegend">' +
+      '<span><i style="background:var(--green)"></i>팔아서 피한 손실</span>' +
+      '<span><i style="background:var(--orange)"></i>안 팔았으면 더 벌었을 돈</span>' +
+      '<span>합계 = 방어 − 기회비용</span>' +
+    '</div>' +
+    (top.length
+      ? '<div class="rvlist">' + top.map(function(r){
+          return '<button class="rvitem" data-review="' + esc(r.name) + '">' +
+            '<span class="rn">' + esc(r.name) + '</span>' +
+            '<span class="rd">' + dateLabel(r.date) + ' · ' + fmt(r.qty) + '주</span>' +
+            '<span class="ra" style="color:' + (r.good ? 'var(--green)' : 'var(--orange)') + '">' +
+              (r.good ? '+' : '−') + fmt(r.amt) + '원</span></button>';
+        }).join('') + '</div>'
+      : '') +
+    '<p class="calc-note">매도단가와 지금 현재가를 비교합니다. 내가 판 뒤 주가가 내려갔으면 손실을 피한 것이고, 올라갔으면 그만큼 더 벌었을 돈입니다. 매도 카드를 누르면 그때의 판 이유와 금액을 고칩니다.</p>';
+  el.innerHTML = html;
+}
+
+/* ---- 성적표 공통: 게이지 */
+function gaugeHTML(ret, scale, win){
+  var half = (scale > 0 ? Math.min(Math.abs(ret) / scale, 1) : 0) * 50;
+  var g = '<div class="gline"><span class="gl">수익률</span><div class="gtrack"><span class="gmid"></span>' +
+    (ret === 0 || ret == null ? '' : '<i class="' + (ret >= 0 ? 'up' : 'down') + '" style="width:' + half.toFixed(1) + '%"></i>') +
+    '</div></div>';
+  if (win != null) {
+    g += '<div class="gline"><span class="gl">승률</span><div class="wtrack"><i style="width:' +
+      clamp(win, 0, 100).toFixed(0) + '%"></i></div></div>';
+  }
+  return g;
+}
+
+/* ---- 산 이유별 성적표 */
+function renderTagStats(c){
+  var d = state.data;
+  var tagBuys = {};
+  d.trades.forEach(function(t){
+    if (t.side !== 'buy') return;
+    (t.reasons || []).forEach(function(r){ tagBuys[r] = (tagBuys[r] || 0) + 1; });
+  });
+  var keys = Object.keys(tagBuys).concat(Object.keys(c.tagStat)).filter(function(v, i, a){ return a.indexOf(v) === i; });
+  keys.sort(function(a, b){
+    var sa = ((c.tagStat[a] ? c.tagStat[a].n : 0) * 10) + (tagBuys[a] || 0);
+    var sb = ((c.tagStat[b] ? c.tagStat[b].n : 0) * 10) + (tagBuys[b] || 0);
+    return sb - sa;
+  });
+  var el = $('#tagStats');
+  if (!keys.length){
+    el.innerHTML = '<div class="calc-note" style="margin:0">매매를 기록하면 산 이유별 매수 건수와, 매도로 이어진 건의 승률·평균 수익률이 여기에 나옵니다.</div>';
+    return;
+  }
+  var scale = 1;
+  keys.forEach(function(k){
+    var st = c.tagStat[k];
+    if (st && st.cost) scale = Math.max(scale, Math.abs(st.pnl / st.cost * 100));
+  });
+  scale = Math.max(scale, 8);
+  var groups = [['buy','산 이유'], ['legacy','옛 태그']];
+  var html = '';
+  var shown = 0;
+  groups.forEach(function(gr){
+    var inGr = keys.filter(function(k){ return reasonSideOf(k) === gr[0]; });
+    if (!inGr.length) return;
+    inGr = inGr.slice(0, 6);
+    shown += inGr.length;
+    html += '<div class="sblock"><div class="sblock-h">' + gr[1] +
+      '<span class="cnt">' + inGr.length + '개</span></div>' +
+      inGr.map(function(k){
+        var st = c.tagStat[k] || { n:0, wins:0, pnl:0, cost:0 };
+        var win = st.n ? (st.wins / st.n * 100) : 0;
+        var ret = st.cost ? (st.pnl / st.cost * 100) : 0;
+        var cls = st.n ? (ret > 0 ? 'up' : (ret < 0 ? 'down' : '')) : '';
+        return '<div class="srow">' +
+          '<div class="srow-top"><span class="tag">' + esc(k) + '</span>' +
+            '<span class="srow-meta">매수 ' + (tagBuys[k] || 0) + ' · 매도 ' + st.n + '</span>' +
+            (st.n
+              ? '<span class="srow-rate ' + cls + '">' + signedPct(ret) + '<small>승률 ' + win.toFixed(0) + '%</small></span>'
+              : '<span class="srow-rate" style="color:var(--sub);font-weight:700">매도 전<small>결과 기다리는 중</small></span>') +
+          '</div>' +
+          (st.n ? gaugeHTML(ret, scale, win) : '') +
+        '</div>';
+      }).join('') + '</div>';
+  });
+  var rest = keys.length - shown;
+  if (rest > 0) html += '<div class="calc-note">' + rest + '개 태그는 접었습니다. 위 태그 필터로 그 기록만 볼 수 있습니다.</div>';
+  el.innerHTML = html;
+}
+
+/* ---- 판 이유별 복기 */
+function renderSellReasonStats(){
+  var rev = state._rev || computeSellReview();
+  var list = computeSellReasonStats(rev);
+  var el = $('#sellReasonStats');
+  if (!list.length){
+    el.innerHTML = '<div class="calc-note" style="margin:0">매도에 판 이유를 남기고 현재가가 있으면, 어떤 이유로 판 매도가 잘 판 매도였는지 여기에 나옵니다.</div>';
+    return;
+  }
+  var scale = 1;
+  list.forEach(function(x){ scale = Math.max(scale, Math.abs(x.net)); });
+  el.innerHTML = list.slice(0, 6).map(function(x){
+    var half = Math.min(Math.abs(x.net) / scale, 1) * 50;
+    return '<div class="srow">' +
+      '<div class="srow-top"><span class="tag' + (reasonSideOf(x.tag) === 'legacy' ? ' legacy' : '') + '">' + esc(x.tag) + '</span>' +
+        '<span class="srow-meta">매도 ' + x.n + '건 · 잘 판 ' + x.good + '건</span>' +
+        '<span class="srow-rate" style="color:' + (x.net >= 0 ? 'var(--green)' : 'var(--orange)') + '">' +
+          (x.net >= 0 ? '+' : '−') + fmt(Math.abs(x.net)) + '원<small>방어 − 기회비용</small></span></div>' +
+      '<div class="gline"><span class="gl">실현</span><div class="gtrack"><span class="gmid"></span>' +
+        (x.net === 0 ? '' : '<i class="' + (x.net > 0 ? 'up' : 'down') + '" style="width:' + half.toFixed(1) + '%;background:' +
+          (x.net > 0 ? 'var(--green)' : 'var(--orange)') + '"></i>') + '</div></div>' +
+    '</div>';
+  }).join('') +
+  '<p class="calc-note">매도할 때 고른 판 이유별로, 그 뒤 주가가 어떻게 됐는지 합산했습니다. 오른쪽은 방어액이 기회비용보다 큰 이유입니다.</p>';
+}
+
+/* ---- 분위기별 매수 */
+function renderMoodStats(c){
+  var el = $('#moodStats');
+  var scale = 1;
+  MOODS.forEach(function(m){
+    var st = c.moodStat[m];
+    if (st && st.cost) scale = Math.max(scale, Math.abs(st.pnl / st.cost * 100));
+  });
+  scale = Math.max(scale, 8);
+  el.innerHTML = MOODS.map(function(m){
+    var n = c.moodBuys[m] || 0;
+    var st = c.moodStat[m];
+    var ret = st && st.cost ? (st.pnl / st.cost * 100) : null;
+    var win = st && st.n ? Math.round(st.wins / st.n * 100) : null;
+    var cls = ret == null ? '' : (ret > 0 ? 'up' : (ret < 0 ? 'down' : ''));
+    return '<div class="srow">' +
+      '<div class="srow-top"><span class="tag"><span class="mood ' + (MOOD_CLASS[m] || '') + '" style="padding-left:10px">' + m + '</span></span>' +
+        '<span class="srow-meta">매수 ' + n + '회' + (st && st.n ? ' · 매도 결과 ' + st.n + '건' : '') + '</span>' +
+        '<span class="srow-rate ' + cls + '">' + (ret == null ? '—' : signedPct(ret)) +
+          '<small>' + (win == null ? '매도 결과 없음' : '승률 ' + win + '%') + '</small></span></div>' +
+      (ret == null ? '' : gaugeHTML(ret, scale, win)) +
+    '</div>';
+  }).join('') +
+  '<p class="calc-note">공포에 산 건이 실제로 수익이 났는지, 과열에 산 건이 어떻게 됐는지를 같은 눈금으로 비교합니다.</p>';
 }
 
 /* ========================================================== 렌더 · 배당 */
@@ -1743,9 +2191,6 @@ function openTradeSheet(id){
   if (!isEdit) t = { date:todayISO(), name:'', side:'buy', qty:'', price:'', funding:'cash', reasons:[], mood:'보통', horizon:'중기', rule:'', memo:'' };
   state.editingId = id || null;
 
-  var reasons = REASONS.map(function(r){
-    return '<button type="button" data-reason="' + esc(r) + '" class="' + ((t.reasons || []).indexOf(r) >= 0 ? 'on' : '') + '">' + esc(r) + '</button>';
-  }).join('');
   var moods = MOODS.map(function(m){ return '<button type="button" data-mood="' + m + '" class="' + (t.mood === m ? 'on' : '') + '">' + m + '</button>'; }).join('');
   var hors = HORIZONS.map(function(h){ return '<button type="button" data-hor="' + h + '" class="' + (t.horizon === h ? 'on' : '') + '">' + h + '</button>'; }).join('');
 
@@ -1765,7 +2210,15 @@ function openTradeSheet(id){
       '<button type="button" data-fund="cash" class="' + (t.funding === 'cash' ? 'on' : '') + '">현금</button>' +
       '<button type="button" data-fund="loan" class="' + (t.funding === 'loan' ? 'on' : '') + '">담보대출</button>' +
     '</div></div>' +
-    '<div class="field"><label>산 이유 <span style="color:var(--sub);font-weight:500">(여러 개 선택)</span></label><div class="pickchips" id="pickReasons">' + reasons + '</div></div>' +
+    '<div class="field"><label id="reasonLabel">산 이유 <span style="color:var(--sub);font-weight:500">(여러 개 선택)</span></label>' +
+      '<div class="pickchips" id="pickReasons"></div>' +
+      '<div class="reason-add">' +
+        '<button type="button" class="btn sm ghost" id="btnAddReason">+ 직접 입력</button>' +
+        '<div class="reason-addform hidden" id="reasonAddForm">' +
+          '<input class="inp" id="newReason" maxlength="16" placeholder="예: 배당 재투자, 자사주 매입">' +
+          '<button type="button" class="btn sm primary" id="btnReasonOk">추가</button>' +
+        '</div>' +
+      '</div></div>' +
     '<div class="field"><label>당시 시장 분위기</label><div class="seg" id="segMood">' + moods + '</div></div>' +
     '<div class="field"><label>목표 기간</label><div class="seg" id="segHor">' + hors + '</div></div>' +
     '<div class="field"><label for="fRule">매도 조건 (한 줄)</label><input class="inp" id="fRule" placeholder="예: +15% 또는 배당 삭감 시" value="' + esc(t.rule || '') + '"></div>' +
@@ -1775,7 +2228,7 @@ function openTradeSheet(id){
       (isEdit ? '<button class="btn danger" id="btnDeleteTrade">삭제</button>' : '') +
       '<button class="btn primary" id="btnSaveTrade">' + (isEdit ? '수정 저장' : '기록하기') + '</button>' +
     '</div>' +
-    '<p class="calc-note">매수·매도는 수량 × 단가로 금액을 계산합니다. 배당은 수량(보유 주수) × 주당 배당금으로 기록합니다.</p>';
+    '<p class="calc-note">매수·매도는 수량 × 단가로 금액을 계산합니다. 배당은 수량(보유 주수) × 주당 배당금으로 기록합니다. 판 이유는 나중에 "안 팔았으면?" 복기에서 성적표가 됩니다.</p>';
 
   openSheet(isEdit ? '기록 수정' : '매매 기록하기', html);
 
@@ -1785,6 +2238,47 @@ function openTradeSheet(id){
   };
   var qtyEl = $('#fQty'), priceEl = $('#fPrice');
 
+  /* v2.0 — 산 이유·판 이유를 나눠 보여 주고, 목록에 없는 옛 태그도 같이 그립니다. */
+  function renderReasonChips(){
+    var side = draft.side;
+    var preset = reasonPreset(side);
+    var custom = (state.data.customReasons[side] || []).slice();
+    var list = preset.concat(custom.filter(function(c){ return preset.indexOf(c) < 0; }));
+    draft.reasons.forEach(function(r){ if (list.indexOf(r) < 0) list.push(r); });
+    var lbl = $('#reasonLabel');
+    if (lbl) lbl.innerHTML = (side === 'sell' ? '판 이유' : (side === 'div' ? '배당 종류' : '산 이유')) +
+      ' <span style="color:var(--sub);font-weight:500">(여러 개 선택)</span>';
+    $('#pickReasons').innerHTML = list.map(function(r){
+      var rs = reasonSideOf(r);
+      var odd = (rs !== 'custom' && rs !== side);
+      return '<button type="button" data-reason="' + esc(r) + '" class="' +
+        (draft.reasons.indexOf(r) >= 0 ? 'on' : '') + (odd ? ' legacy' : '') + '">' + esc(r) + '</button>';
+    }).join('');
+    $$('#pickReasons button').forEach(function(b){
+      b.onclick = function(){
+        var r = b.getAttribute('data-reason');
+        var i = draft.reasons.indexOf(r);
+        if (i >= 0) draft.reasons.splice(i, 1); else draft.reasons.push(r);
+        b.classList.toggle('on', i < 0);
+      };
+    });
+  }
+  function addCustomReason(){
+    var inp = $('#newReason');
+    var v = String(inp.value || '').replace(/[,\n\r]/g, ' ').trim().slice(0, 24);
+    if (!v){ inp.focus(); return; }
+    var side = draft.side;
+    if (!state.data.customReasons[side]) state.data.customReasons[side] = [];
+    var pool = state.data.customReasons[side];
+    if (pool.indexOf(v) < 0) pool.push(v);
+    if (draft.reasons.indexOf(v) < 0) draft.reasons.push(v);
+    inp.value = '';
+    $('#reasonAddForm').classList.add('hidden');
+    store();                       // 매매를 저장하기 전에 태그부터 기억합니다
+    renderReasonChips();
+    toast('「' + v + '」 태그를 넣었습니다.');
+  }
+
   function syncLabels(){
     var isDiv = draft.side === 'div';
     $('#lblQty').textContent = isDiv ? '수량(보유 주수)' : '수량(주)';
@@ -1793,6 +2287,7 @@ function openTradeSheet(id){
     $('#fundField').style.display = (draft.side === 'buy') ? '' : 'none';
     var seg = $('#segSide');
     seg.className = 'seg divseg ' + (draft.side === 'sell' ? 'sell' : (draft.side === 'div' ? 'div' : 'buy'));
+    renderReasonChips();
   }
   function syncAmt(){
     var v = num(qtyEl.value) * num(priceEl.value);
@@ -1825,15 +2320,17 @@ function openTradeSheet(id){
       $$('#segHor button').forEach(function(x){ x.classList.toggle('on', x === b); });
     };
   });
-  $$('#pickReasons button').forEach(function(b){
-    b.onclick = function(){
-      var r = b.getAttribute('data-reason');
-      var i = draft.reasons.indexOf(r);
-      if (i >= 0) draft.reasons.splice(i, 1); else draft.reasons.push(r);
-      b.classList.toggle('on', i < 0);
-    };
-  });
+  if ($('#btnAddReason')) $('#btnAddReason').onclick = function(){
+    var f = $('#reasonAddForm');
+    f.classList.toggle('hidden');
+    if (!f.classList.contains('hidden')) $('#newReason').focus();
+  };
+  if ($('#btnReasonOk')) $('#btnReasonOk').onclick = addCustomReason;
+  if ($('#newReason')) $('#newReason').onkeydown = function(e){
+    if (e.key === 'Enter' && !e.isComposing){ e.preventDefault(); addCustomReason(); }
+  };
   qtyEl.oninput = syncAmt; priceEl.oninput = syncAmt;
+  renderReasonChips();
 
   $('#btnSaveTrade').onclick = function(){
     var name = $('#fName').value.trim();
@@ -2031,7 +2528,7 @@ function openPriceSheet(name){
   openSheet(name + ' 현재가',
     '<div class="field"><label for="pPrice">현재가(원)</label>' +
       '<input class="inp num" id="pPrice" type="number" inputmode="numeric" min="0" step="1" value="' + fallback + '"></div>' +
-    '<p class="calc-note">평가액 = 보유 수량 × 현재가. 자동 시세 연결 전까지는 직접 넣습니다.</p>' +
+    '<p class="calc-note">평가액 = 보유 수량 × 현재가. 구글 시트를 연결하면 앱을 열 때 자동으로 갱신되고, 여기서 직접 바꿀 수도 있습니다.</p>' +
     '<div class="sheet-actions"><button class="btn primary block" id="btnSavePrice">저장</button></div>');
   $('#btnSavePrice').onclick = function(){
     var v = num($('#pPrice').value);
@@ -2040,6 +2537,99 @@ function openPriceSheet(name){
     state.demo = false;
     persist(); renderAll(); closeSheet(); toast(name + ' 현재가를 바꿨습니다.');
   };
+}
+
+/* ========================================================== 종목 복기 상세 (v2.0) */
+function openStockReview(name){
+  if (!name) return;
+  var c = compute();
+  var ns = computeNameStats(name, c);
+  var revRows = computeSellReview(c).rows.filter(function(r){ return r.name === name; });
+  var gs = stockReviewGurus(name);
+  var h = ns.holding;
+  var heldLine = h
+    ? fmt(h.qty) + '주 · 평단 ' + fmt(h.avg) + '원 → 현재 ' + fmt(ns.price) + '원' +
+      (ns.priceEst ? ' (추정)' : '') + ' · ' +
+      signedPct(h.avg > 0 ? (ns.price - h.avg) / h.avg * 100 : 0)
+    : '지금은 들고 있지 않습니다 (전량 매도)';
+  var pnlCls = ns.pnl > 0 ? 'up' : (ns.pnl < 0 ? 'down' : '');
+
+  var timeline = ns.trades.map(function(t){
+    var amt = num(t.qty) * num(t.price);
+    var tags = (t.reasons || []).map(function(r){
+      return '<span class="tag mini' + (reasonSideOf(r) === 'legacy' ? ' legacy' : '') + '">' + esc(r) + '</span>';
+    }).join('');
+    var extras = [];
+    if (t.mood) extras.push('<b>분위기</b> ' + esc(t.mood));
+    if (t.horizon) extras.push('<b>목표</b> ' + esc(t.horizon));
+    if (t.side === 'buy' && t.funding === 'loan') extras.push('<b>재원</b> 담보대출');
+    if (t.side === 'init') extras.push(t.prin ? '순수 원금에 포함' : '순수 원금 미포함');
+    if (t.memo) extras.push(esc(t.memo));
+    return '<div class="tli ' + t.side + '">' +
+      '<div class="tli-top"><span class="tli-side">' + (SIDE_LABEL[t.side] || t.side) + '</span>' +
+        '<span class="tli-amt num">' + won(amt) + '</span>' +
+        '<span class="tli-date num">' + dateLabel(t.date) + '</span></div>' +
+      '<div class="tli-note" style="margin-top:3px">' + fmt(t.qty) + '주 × ' + fmt(t.price) + '원</div>' +
+      (tags ? '<div class="tli-tags">' + tags + '</div>' : '') +
+      (t.rule ? '<div class="tli-note"><b>매도 조건</b> ' + esc(t.rule) + '</div>' : '') +
+      (extras.length ? '<div class="tli-note">' + extras.join(' · ') + '</div>' : '') +
+    '</div>';
+  }).join('');
+
+  var sellPart = revRows.length
+    ? '<div class="hr"></div><div class="sblock-h">판 기록 복기<span class="cnt">' + revRows.length + '건</span></div>' +
+      revRows.map(function(r){
+        return '<div class="srow"><div class="srow-top"><span class="tag mini">' + dateLabel(r.date) + '</span>' +
+          '<span class="srow-meta">' + fmt(r.qty) + '주 · 매도 ' + fmt(r.sellPx) + '원</span></div>' +
+          sellBadgeHTML(r) + '</div>';
+      }).join('')
+    : '';
+
+  var guruPart = gs.length
+    ? '<div class="hr"></div><div class="sblock-h">관련 고수 생각</div>' +
+      gs.map(function(x){
+        return '<div class="info-box" style="margin-top:8px"><b>' + esc(x.g.title) + '</b>' +
+          '<div style="font-size:11.5px;color:var(--sub);margin-top:3px">' + esc(x.g.author) + ' · ' + esc(x.g.src) + '</div>' +
+          '<div style="margin-top:6px;font-size:12.5px;line-height:1.55">' + esc((x.g.points || [])[0] || '') + '</div>' +
+          '<div style="margin-top:7px;display:flex;gap:5px;flex-wrap:wrap">' +
+            x.hits.map(function(t){ return '<span class="tag mini">' + esc(t) + '</span>'; }).join('') + '</div></div>';
+      }).join('')
+    : '';
+
+  var html =
+    '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">' +
+      '<span class="sector" style="margin-left:0">' + esc(ns.sector) + '</span>' +
+      '<span style="font-size:12px;color:var(--sub)">매수 ' + ns.buyCount + '회 · 매도 ' + ns.sellCount + '회</span>' +
+    '</div>' +
+    '<div class="revsum" style="margin-top:12px">' +
+      '<div class="revbox"><div class="rk">안 샀으면 현금 그대로였습니다</div>' +
+        '<div class="rv num ' + pnlCls + '">' + signedWon(ns.pnl) + '</div>' +
+        '<div class="rs">넣은 돈 ' + moneyShort(ns.inAmt) + '원 기준 ' + signedPct(ns.rate) + '</div></div>' +
+      '<div class="revbox"><div class="rk">지금 들고 있는 몫</div>' +
+        '<div class="rv num">' + (h ? won(ns.heldValue) : '—') + '</div>' +
+        '<div class="rs">' + heldLine + '</div></div>' +
+      '<div class="revbox"><div class="rk">벌어들인 현금</div>' +
+        '<div class="rv num">' + won(ns.sellAmt + ns.divAmt) + '</div>' +
+        '<div class="rs">매도 ' + moneyShort(ns.sellAmt) + ' · 배당 ' + moneyShort(ns.divAmt) + '</div></div>' +
+      '<div class="revbox"><div class="rk">매도로 실현한 손익</div>' +
+        '<div class="rv num ' + (ns.realized > 0 ? 'up' : (ns.realized < 0 ? 'down' : '')) + '">' + signedWon(ns.realized) + '</div>' +
+        '<div class="rs">팔아서 확정된 이익</div></div>' +
+    '</div>' +
+    '<div class="revnote">' + esc(name) + '에 넣은 ' + won(ns.inAmt) + '은 지금 ' + won(ns.heldValue + ns.sellAmt + ns.divAmt) +
+      '이 됐습니다. 그대로 현금으로 뒀다면 ' + won(ns.inAmt) + '이었습니다.</div>' +
+    sellPart +
+    '<div class="hr"></div>' +
+    '<div class="sblock-h">매수 이유 · 분위기 · 메모 타임라인<span class="cnt">' + ns.trades.length + '건</span></div>' +
+    (timeline ? '<div class="tl">' + timeline + '</div>' : '<div class="calc-note">기록이 없습니다.</div>') +
+    guruPart +
+    '<div class="sheet-actions" style="margin-top:16px">' +
+      '<button class="btn ghost" id="btnReviewPrice">현재가 수정</button>' +
+      '<button class="btn primary" id="btnReviewClose">닫기</button>' +
+    '</div>';
+
+  openSheet(name + ' 복기', html);
+  $('#btnReviewClose').onclick = closeSheet;
+  $('#btnReviewPrice').onclick = function(){ openPriceSheet(name); };
 }
 
 /* ========================================================== 고수 원문 */
@@ -2092,7 +2682,7 @@ function openSettings(){
       '<button class="btn sm" id="btnConnect">' + (state.url ? '다시 연결' : '연결') + '</button></div>' +
       '<div class="srchint" id="urlHint">' + (state.url ? '연결됨 · 구글 시트와 이 기기가 같은 데이터를 씁니다.' : 'Code.gs를 배포해 받은 .../exec 주소를 넣으면 폰과 PC가 같은 기록을 씁니다.') + '</div>' +
     '</div>' +
-    '<div class="setrow"><div><div class="sk">현재가 자동 불러오기</div><div class="ss">시트 「시세」 탭의 GOOGLEFINANCE 값</div></div><button class="btn sm" id="btnPullPrices">불러오기</button></div>' +
+    '<div class="setrow"><div><div class="sk">현재가 자동 불러오기</div><div class="ss">네이버 금융에서 종목코드·현재가를 채웁니다 · 앱을 열 때도 자동</div></div><button class="btn sm" id="btnPullPrices">불러오기</button></div>' +
     '<div class="setrow"><div><div class="sk">파일로 내보내기</div><div class="ss">JSON 파일 하나로 저장</div></div><button class="btn sm" id="btnExport">내보내기</button></div>' +
     '<div class="setrow"><div><div class="sk">예시 데이터로 되돌리기</div><div class="ss">지금 기록은 지워집니다</div></div><button class="btn sm" id="btnReset">되돌리기</button></div>' +
     '<div class="setrow"><div><div class="sk">모두 지우고 시작</div><div class="ss">빈 기록으로 처음부터</div></div><button class="btn sm" id="btnEmpty">비우기</button></div>' +
@@ -2165,8 +2755,9 @@ function openSettings(){
     jsonp('prices', '').then(function(res){
       if (!res || res.ok !== true) throw new Error((res && res.error) || '시세를 읽지 못했습니다.');
       var names = Object.keys(res.prices || {});
-      if (!names.length) throw new Error('시세 탭에 숫자가 없습니다. 종목코드와 GOOGLEFINANCE 수식을 확인해 주세요.');
+      if (!names.length) throw new Error('시세를 찾지 못했습니다. 시트 「시세」 탭의 종목코드를 확인해 주세요.');
       names.forEach(function(n){ state.data.prices[n] = res.prices[n]; });
+      if (res.updated) state.data.priceAt = String(res.updated);
       persist(); renderAll();
       b.disabled = false; b.textContent = '불러오기';
       toast(names.length + '종목 현재가를 반영했습니다.');
@@ -2306,6 +2897,30 @@ function setDot(kind, title){
   state.sync = kind;
 }
 
+/* v2.0 — 앱을 열면 구글 시트(Code.gs v1.2.0)가 네이버 금융에서 현재가를 받아 옵니다.
+   조용히 반영하고, 실패하면 기존 숫자를 그대로 둡니다. */
+function applyPriceResult(res){
+  if (!res || res.ok !== true) return 0;
+  var map = res.prices || {}, n = 0;
+  Object.keys(map).forEach(function(k){
+    var v = num(map[k]);
+    if (v > 0){ state.data.prices[k] = v; n += 1; }
+  });
+  if (n) state.data.priceAt = res.updated ? String(res.updated) : new Date().toISOString();
+  return n;
+}
+var priceRefreshBusy = false;
+function autoRefreshPrices(){
+  if (!state.url || state.demo || priceRefreshBusy) return Promise.resolve(0);
+  priceRefreshBusy = true;
+  return jsonp('prices', '').then(function(res){
+    priceRefreshBusy = false;
+    var n = applyPriceResult(res);
+    if (n){ store(); renderAll(); setDot('on', '현재가 ' + n + '종목 자동 갱신'); }
+    return n;
+  }).catch(function(){ priceRefreshBusy = false; return 0; });
+}
+
 /* ========================================================== 토스트 */
 var toastTimer;
 function toast(msg){
@@ -2396,11 +3011,20 @@ function bindEvents(){
   chart.addEventListener('pointerleave', curveLeave);
   chart.addEventListener('click', curveHover);
 
-  /* 보유 종목 현재가 · 빈 화면의 기존 보유 추가 */
+  /* 보유 종목: 종목명 → 복기, 현재가 배지 → 수정, 빈 화면의 기존 보유 추가 */
   $('#holdingsList').addEventListener('click', function(e){
+    var rv = e.target.closest('[data-review]');
+    if (rv){ openStockReview(rv.getAttribute('data-review')); return; }
     if (e.target.closest('[data-addhold]')){ openHoldingSheet(null); return; }
     var b = e.target.closest('[data-price]');
     if (b) openPriceSheet(b.getAttribute('data-price'));
+  });
+
+  /* 매도 복기 요약의 종목 줄 → 복기 */
+  var srEl = $('#sellReview');
+  if (srEl) srEl.addEventListener('click', function(e){
+    var rv = e.target.closest('[data-review]');
+    if (rv) openStockReview(rv.getAttribute('data-review'));
   });
 
   /* 필터 */
@@ -2416,8 +3040,10 @@ function bindEvents(){
     renderTrades(compute());
   });
 
-  /* 타임라인 → 수정 (기존 보유는 전용 시트) */
+  /* 타임라인 → 종목명은 복기, 카드는 수정 (기존 보유는 전용 시트) */
   $('#timeline').addEventListener('click', function(e){
+    var rv = e.target.closest('[data-review]');
+    if (rv){ openStockReview(rv.getAttribute('data-review')); return; }
     var card = e.target.closest('.tcard');
     if (!card) return;
     var id = card.getAttribute('data-id');
@@ -2587,7 +3213,7 @@ function init(){
   renderAll();
   switchView('home');
 
-  if (state.url) syncLoad(false);
+  if (state.url) syncLoad(false).then(function(){ autoRefreshPrices(); });
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
