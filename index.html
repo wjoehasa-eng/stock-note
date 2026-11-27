@@ -32,6 +32,60 @@
 <meta name="theme-color" content="#F2F4F6">
 <meta name="description" content="매매 이유와 결과를 한곳에 쌓고, 순수 원금 대비 진짜 수익·담보 여유·배당 공시 변경·고수 매칭을 한눈에 봅니다.">
 <title>주식노트</title>
+<script>
+/* ── 첫 로딩 안내: 시트에서 불러오는 동안 경과 초를 보여 준다. 이 기기에 내 데이터가 있으면 띄우지 않는다. */
+window.__LG_CFG = { keys: ["stocknote.data.v1"], msg: '시트에서 불러오는 중…', accent: '#3182F6', bg: '#F5F6F8' };
+(function(){
+  var cfg = window.__LG_CFG;
+  function lsGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
+  function sheetConnected(){
+    try {
+      if (/[?&]demo=1/.test(location.search)) return false;
+      if (/[?&#]s=/.test(location.hash + location.search)) return true;
+      for (var i = 0; i < localStorage.length; i++){ var v = lsGet(localStorage.key(i)) || ''; if (v.indexOf('script.google.com/macros/s/') >= 0) return true; }
+    } catch(e){}
+    return false;
+  }
+  function hasLocalData(){
+    if (!cfg.keys || !cfg.keys.length) return false;
+    for (var i = 0; i < cfg.keys.length; i++){ var v = lsGet(cfg.keys[i]); if (v && v !== 'null' && v !== 'undefined' && v.length > 2) return true; }
+    return false;
+  }
+  var el = null, t0 = 0, iv = null, msg = cfg.msg || '시트에서 불러오는 중…', failsafe = null;
+  function label(){ var s = Math.max(0, Math.round((Date.now() - t0) / 1000)); return msg + ' (' + s + '초)'; }
+  function show(m){
+    if (m) msg = m;
+    if (el){ var n = document.getElementById('lgTxt'); if (n) n.textContent = label(); return; }
+    t0 = Date.now();
+    el = document.createElement('div'); el.id = 'loadGate'; el.setAttribute('role','status'); el.setAttribute('aria-live','polite');
+    el.style.cssText = 'position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:' + (cfg.bg || '#F2F4F6') + ';color:' + (cfg.color || '#191F28') + ';font:600 15px/1.5 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;';
+    var st = document.createElement('style');
+    st.textContent = '@keyframes lgspin{to{transform:rotate(360deg)}}@media (prefers-color-scheme:dark){#loadGate{background:#17171C!important;color:#F2F4F6!important}}';
+    (document.head || document.documentElement).appendChild(st);
+    var sp = document.createElement('div');
+    sp.style.cssText = 'width:28px;height:28px;border-radius:50%;border:3px solid rgba(120,130,150,.25);border-top-color:' + (cfg.accent || '#3182F6') + ';animation:lgspin .8s linear infinite';
+    var tx = document.createElement('div'); tx.id = 'lgTxt'; tx.textContent = label();
+    el.appendChild(sp); el.appendChild(tx);
+    (document.body || document.documentElement).appendChild(el);
+    if (iv) clearInterval(iv);
+    iv = setInterval(function(){ var n = document.getElementById('lgTxt'); if (n) n.textContent = label(); }, 1000);
+    if (failsafe) clearTimeout(failsafe);
+    failsafe = setTimeout(done, 20000);
+  }
+  function done(){
+    window.__LG_DONE = true;
+    if (failsafe){ clearTimeout(failsafe); failsafe = null; }
+    if (iv){ clearInterval(iv); iv = null; }
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+    el = null;
+  }
+  window.LoadGate = { show: show, done: done, active: function(){ return !!el; }, label: label };
+  if (cfg.auto !== false && sheetConnected() && !hasLocalData()){
+    if (document.body) show();
+    else document.addEventListener('DOMContentLoaded', function(){ if (!el && !window.__LG_DONE) show(); });
+  }
+})();
+</script>
 <!-- 설치형 앱(PWA): 홈 화면에 추가하면 주소창 없는 앱으로 열립니다 -->
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" href="./icon-192.png">
@@ -870,7 +924,7 @@ select.inp{appearance:none;-webkit-appearance:none;font-weight:700;background-im
 
 /* ========================================================== 상수 */
 var LS = { data:'stocknote.data.v1', url:'stocknote.url', theme:'stocknote.theme' };
-var APP_VERSION = '2.0.1';
+var APP_VERSION = '2.0.2';
 
 /* v2.0 — 산 이유와 판 이유를 나눕니다. 옛 태그는 'LEGACY'로 남겨 지우지 않고 그대로 보여 줍니다. */
 var BUY_REASONS = [
@@ -2692,6 +2746,7 @@ function openSettings(){
     '</div></div><button class="btn sm" id="btnCopyLink">복사</button></div>' +
     '<div class="setrow"><div><div class="sk">현재가 자동 불러오기</div><div class="ss">네이버 금융에서 종목코드·현재가를 채웁니다 · 앱을 열 때도 자동</div></div><button class="btn sm" id="btnPullPrices">불러오기</button></div>' +
     '<div class="setrow"><div><div class="sk">파일로 내보내기</div><div class="ss">JSON 파일 하나로 저장</div></div><button class="btn sm" id="btnExport">내보내기</button></div>' +
+    '<div class="setrow"><div><div class="sk">백업 불러오기</div><div class="ss">내보낸 JSON 파일로 기록을 되돌립니다</div></div><button class="btn sm" id="btnImport">가져오기</button></div>' +
     '<div class="setrow"><div><div class="sk">예시 데이터로 되돌리기</div><div class="ss">지금 기록은 지워집니다</div></div><button class="btn sm" id="btnReset">되돌리기</button></div>' +
     '<div class="setrow"><div><div class="sk">모두 지우고 시작</div><div class="ss">빈 기록으로 처음부터</div></div><button class="btn sm" id="btnEmpty">비우기</button></div>' +
     backupRow +
@@ -2803,6 +2858,27 @@ function openSettings(){
     setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
   }
   $('#btnExport').onclick = exportJSON;
+  $('#btnImport').onclick = function(){
+    var inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = '.json,application/json';
+    inp.onchange = function(){
+      var f = inp.files && inp.files[0]; if (!f) return;
+      var rd = new FileReader();
+      rd.onload = function(){
+        try{
+          var obj = JSON.parse(rd.result);
+          if (!obj || !Array.isArray(obj.trades)) throw new Error('주식노트 백업 파일이 아닙니다.');
+          if (!window.confirm('백업 파일의 기록 ' + obj.trades.length + '건으로 이 기기의 기록을 바꿀까요?\n지금 기록(' + (state.data.trades || []).length + '건)은 사라집니다.' + (state.url ? '\n\n연결된 시트에도 이 내용이 저장됩니다.' : ''))) return;
+          state.data = normalizeData(obj); state.demo = false;
+          $('#demoBanner').classList.add('hidden');
+          PULL_OK = true;              /* 사용자가 직접 백업을 골라 되돌리는 명시적 동작 — 바로 시트에 반영 */
+          persist(); renderAll(); closeSheet(); toast('백업을 불러왔습니다.');
+        }catch(err){ toast('가져오기 실패: ' + err.message); }
+      };
+      rd.readAsText(f);
+    };
+    inp.click();
+  };
 
   $('#btnReset').onclick = function(){
     var b = $('#btnReset');
@@ -2838,6 +2914,10 @@ function openSettings(){
 
 /* ========================================================== 저장 · 동기화 */
 var pushTimer = null;
+/* 데이터 증발 방지: 시트에서 한 번 이상 불러오기 전에는 자동 저장하지 않고, 시트 기록을 빈 기록으로 덮어쓰지 않는다. */
+var PULL_OK = false;
+var REMOTE_NONEMPTY = false;
+function isEmptyStockData(d){ return !d || (!(d.trades || []).length && !(d.dividends || []).length && !(d.curve || []).length); }
 function persist(skipPush){
   store();
   try { localStorage.setItem('stocknote.demo', state.demo ? '1' : '0'); } catch(e){}
@@ -2855,12 +2935,20 @@ function backupInfo(){
 }
 function schedulePush(){
   if (!state.url || state.demo) return;
+  if (!PULL_OK){ setDot('wait', '시트 확인 전 — 저장 보류'); return; }   /* 첫 불러오기 전 자동 저장 금지 */
   clearTimeout(pushTimer);
   setDot('wait', '저장 중…');
-  pushTimer = setTimeout(pushSave, 900);
+  pushTimer = setTimeout(function(){ pushSave(false); }, 900);
 }
-function pushSave(){
+function pushSave(manual){
   if (!state.url) return;
+  if (!PULL_OK && !manual){ setDot('err', '시트에서 먼저 불러온 뒤 저장'); return; }
+  if (REMOTE_NONEMPTY && isEmptyStockData(state.data)){
+    if (!manual || !window.confirm('시트에 있는 기록을 빈 기록으로 덮어씔까요?\n되돌릴 수 없습니다.')){
+      setDot('err', '빈 기록 덮어쓰기를 막았습니다');
+      return;
+    }
+  }
   var body = JSON.stringify({ action:'save', data: state.data, app:'stocknote', version: APP_VERSION });
   fetch(state.url, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: body, redirect:'follow' })
     .then(function(){ setDot('on', '구글 시트에 저장됨'); })
@@ -2894,6 +2982,8 @@ function syncLoad(force){
     if (!res || res.ok !== true) throw new Error((res && res.error) || '불러오기 실패');
     var incoming = res.data || res;
     var hasData = incoming && ((incoming.trades && incoming.trades.length) || (incoming.settings && num(incoming.settings.principal) > 0));
+    PULL_OK = true;
+    REMOTE_NONEMPTY = !!(incoming && ((incoming.trades || []).length || (incoming.dividends || []).length || (incoming.curve || []).length));
     var applied = false;
     if (hasData && (force || state.demo)){
       /* 이 기기에 남은 기록이 있으면 덮어쓰기 전에 한 벌 백업 */
@@ -3271,7 +3361,9 @@ function init(){
   renderAll();
   switchView('home');
 
-  if (state.url) syncLoad(false).then(function(){ autoRefreshPrices(); });
+  if (window.LoadGate && state.url && !state.demo && !stored) LoadGate.show('시트에서 불러오는 중…');
+  if (state.url) syncLoad(false).then(function(){ if (window.LoadGate) LoadGate.done(); autoRefreshPrices(); });
+  else if (window.LoadGate) LoadGate.done();
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

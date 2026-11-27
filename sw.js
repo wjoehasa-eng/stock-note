@@ -8,7 +8,7 @@
  *  · 저장(POST) 요청은 그대로 통과. #s=... 해시는 서버로 가지 않으므로 영향 없음.
  *  · 새 버전은 즉시 활성화(skipWaiting + clients.claim).
  */
-const CACHE = 'stock-note-v5';
+const CACHE = 'stock-note-v6';
 const SHELL = [
   './',
   './index.html',
