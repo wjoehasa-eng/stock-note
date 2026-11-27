@@ -213,7 +213,7 @@ async def main():
         sw = await pg.evaluate("(async()=>{const r=await fetch('./sw.js');const t=await r.text();return t.match(/CACHE = '([^']+)'/)[1];})()")
         check("서비스 워커 캐시 v4 이상", sw.replace("stock-note-v", "") >= "4" or "v4" in sw, sw)
         ver = await pg.inner_text(".brand .ver")
-        check("버전 표시 v2.0", ver.strip() == "v2.0", ver)
+        check("버전 표시 v2.1", ver.strip() == "v2.1", ver)
 
         check("콘솔 에러 0", not errs, errs)
         await browser.close()
