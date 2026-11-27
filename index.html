@@ -2943,7 +2943,7 @@ function schedulePush(){
 function pushSave(manual){
   if (!state.url) return;
   if (!PULL_OK && !manual){ setDot('err', '시트에서 먼저 불러온 뒤 저장'); return; }
-  if (REMOTE_NONEMPTY && isEmptyStockData(state.data)){
+  if (isEmptyStockData(state.data) && (REMOTE_NONEMPTY || !PULL_OK)){
     if (!manual || !window.confirm('시트에 있는 기록을 빈 기록으로 덮어씔까요?\n되돌릴 수 없습니다.')){
       setDot('err', '빈 기록 덮어쓰기를 막았습니다');
       return;
