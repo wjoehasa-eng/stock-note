@@ -5,7 +5,8 @@
     기본 화면의 숫자·종목·금액은 전부 누구나 아는 종목으로 만든 가상 예시입니다.
   · 저장 위치: ① 이 브라우저(localStorage) ② (선택) 본인 구글 시트(Apps Script)
   · 구글 시트 연결: 배포한 웹 앱(.../exec) 주소를 ⚙ 설정에 넣거나,
-    주소창 끝에 #s=<base64 주소> 를 붙여 즐겨찾기합니다(my-portal 과 같은 방식).
+    주소창 끝에 #s=<base64url 주소> 를 붙여 즐겨찾기합니다(my-portal 과 같은 방식).
+    설정의 [이 페이지 링크 복사]가 그 주소를 만들어 줍니다(연결 뒤 주소창 해시는 정리됨).
   · 데모: ?demo=1 또는 저장된 데이터가 없을 때 자동으로 예시 데이터로 시작합니다.
   · v1.1: 설치형 앱(PWA) — manifest.webmanifest · sw.js(오프라인 껍데기) · 아이콘(192/512/maskable/apple-touch)
     · 설정과 상단 버튼에서 '앱으로 설치' (안드로이드는 원클릭, iOS는 사파리 공유 → 홈 화면에 추가)
@@ -20,6 +21,8 @@
         ③ 종목명을 누르면 그 종목의 매수 이유·분위기·매도조건·메모 타임라인과 현재 수익, 고수 생각 매칭을 한 장에.
         ④ 구글 시트가 연결돼 있으면 앱을 열 때 현재가를 백그라운드에서 한 번 자동으로 받아 옵니다
           (Code.gs v1.2.0 — 네이버 금융에서 종목코드와 현재가를 자동으로 채웁니다).
+  · v2.0.1: 설정 「구글 시트 연결」 아래 [이 페이지 링크 복사] — 지금 연결된 주소가 들어간
+    #s=<base64url> 링크를 클립보드로. 다른 기기에서 열면 자동 연결, 링크로 연 뒤 주소창은 정리.
 -->
 <html lang="ko" data-theme="light">
 <head>
@@ -867,7 +870,7 @@ select.inp{appearance:none;-webkit-appearance:none;font-weight:700;background-im
 
 /* ========================================================== 상수 */
 var LS = { data:'stocknote.data.v1', url:'stocknote.url', theme:'stocknote.theme' };
-var APP_VERSION = '2.0.0';
+var APP_VERSION = '2.0.1';
 
 /* v2.0 — 산 이유와 판 이유를 나눕니다. 옛 태그는 'LEGACY'로 남겨 지우지 않고 그대로 보여 줍니다. */
 var BUY_REASONS = [
@@ -963,7 +966,9 @@ function esc(s){
   });
 }
 function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
-function b64encode(s){ try { return btoa(unescape(encodeURIComponent(s))).replace(/=+$/, ''); } catch(e){ return ''; } }
+function b64encode(s){
+  try { return btoa(unescape(encodeURIComponent(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/, ''); } catch(e){ return ''; }
+}
 function b64decode(s){
   try {
     var p = String(s).replace(/-/g,'+').replace(/_/g,'/');
@@ -2682,6 +2687,9 @@ function openSettings(){
       '<button class="btn sm" id="btnConnect">' + (state.url ? '다시 연결' : '연결') + '</button></div>' +
       '<div class="srchint" id="urlHint">' + (state.url ? '연결됨 · 구글 시트와 이 기기가 같은 데이터를 씁니다.' : 'Code.gs를 배포해 받은 .../exec 주소를 넣으면 폰과 PC가 같은 기록을 씁니다.') + '</div>' +
     '</div>' +
+    '<div class="setrow"><div><div class="sk">이 페이지 링크 복사</div><div class="ss" id="copyLinkHint">' +
+      (state.url ? '지금 연결된 시트 주소가 들어간 링크를 복사합니다. 다른 기기에서 열면 자동으로 연결됩니다.' : '시트 주소를 연결하면 이 페이지 링크를 만들 수 있습니다.') +
+    '</div></div><button class="btn sm" id="btnCopyLink">복사</button></div>' +
     '<div class="setrow"><div><div class="sk">현재가 자동 불러오기</div><div class="ss">네이버 금융에서 종목코드·현재가를 채웁니다 · 앱을 열 때도 자동</div></div><button class="btn sm" id="btnPullPrices">불러오기</button></div>' +
     '<div class="setrow"><div><div class="sk">파일로 내보내기</div><div class="ss">JSON 파일 하나로 저장</div></div><button class="btn sm" id="btnExport">내보내기</button></div>' +
     '<div class="setrow"><div><div class="sk">예시 데이터로 되돌리기</div><div class="ss">지금 기록은 지워집니다</div></div><button class="btn sm" id="btnReset">되돌리기</button></div>' +
@@ -2701,6 +2709,25 @@ function openSettings(){
   });
 
   if ($('#btnInstall')) $('#btnInstall').onclick = function(){ startInstall(); };
+
+  $('#btnCopyLink').onclick = function(){
+    var hint = $('#urlHint');
+    var u = (state.url || localStorage.getItem(LS.url) || '').trim();
+    if (!u){
+      hint.className = 'srchint bad';
+      hint.textContent = '저장된 시트 주소가 없습니다. 위에 .../exec 주소를 넣고 [연결]을 먼저 눌러 주세요.';
+      return;
+    }
+    var link = pageLink(u);
+    if (!link){
+      hint.className = 'srchint bad';
+      hint.textContent = '링크는 http(s) 주소로 연 화면에서만 만들 수 있습니다.';
+      return;
+    }
+    hint.className = 'srchint good';
+    hint.textContent = '이 페이지 링크를 복사했습니다. 다른 기기에서 열면 같은 시트로 연결됩니다.';
+    copyText(link, '이 페이지 링크를 복사했습니다.');
+  };
 
   $('#btnSaveSettings').onclick = function(){
     var p = num($('#setPrincipal').value);
@@ -2929,6 +2956,35 @@ function toast(msg){
   t.classList.add('on');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(function(){ t.classList.remove('on'); }, 2400);
+}
+
+/* ========================================================== 페이지 링크(#s=) */
+/* 설정의 [이 페이지 링크 복사]: 현재 페이지 + #s=<base64url(시트 주소)>
+   base64url 로 만들고, 읽을 때(b64decode)는 표준 base64·%인코딩도 받아 준다. */
+function pageBase(){
+  return (location.protocol === 'http:' || location.protocol === 'https:') ? location.origin + location.pathname : '';
+}
+function pageLink(url){
+  var base = pageBase(), enc = b64encode(url);
+  return (base && enc) ? base + '#s=' + enc : '';
+}
+function copyText(text, okMsg){
+  function done(){ toast(okMsg || '복사했습니다.'); }
+  function fallback(){
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed'; ta.style.top = '0'; ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try { ta.setSelectionRange(0, ta.value.length); } catch(e){}
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch(e){}
+    document.body.removeChild(ta);
+    if (ok) done(); else toast('복사가 막혔습니다. 링크를 길게 눌러 직접 복사해 주세요.');
+  }
+  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done).catch(fallback);
+  else fallback();
 }
 
 /* ========================================================== 테마 */
@@ -3198,6 +3254,8 @@ function init(){
   var storedUrl = localStorage.getItem(LS.url) || '';
   if (conn){ state.url = conn; try { localStorage.setItem(LS.url, conn); } catch(e){} }
   else if (storedUrl) state.url = storedUrl;
+  /* #s= 링크로 열었으면 주소는 위에서 이미 저장됐으니 주소창 해시는 정리한다(새로고침해도 그대로 연결). */
+  if (conn && hash){ try { history.replaceState(null, '', location.pathname + location.search); } catch(e){} }
 
   var stored = loadStored();
   var forceDemo = params.get('demo') === '1';
